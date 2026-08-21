@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
-# Grafana's file-based dashboard provisioner (used by docker-compose and the
-# grafana-dashboards-configmap Helm template) does not resolve a dashboard's
-# ${DS_...} __inputs template variables the way the "Import" UI flow does —
-# it only substitutes those on manual import. nvidia-dcgm-dashboard.json is
-# a vendored community export that still uses ${DS_PROMETHEUS}, so it must
-# be pre-resolved to a fixed datasource uid before it can be provisioned
-# from a file. Re-run this after updating either vendored dashboard JSON in
-# k3s/grafana/.
+# The vendored dashboards in k3s/grafana/ are in two different shapes and
+# neither is directly consumable by Grafana's file-based provisioner (used
+# by docker-compose and the grafana-dashboards-configmap Helm template):
+#
+#   - dashboard.json is wrapped in the *HTTP API* import shape
+#     ({"dashboard": {...}, "overwrite": true} — what README's
+#     `POST /api/dashboards/db` curl command for Grafana Cloud expects) but
+#     the file provisioner wants the raw dashboard object directly, no
+#     wrapper — otherwise it fails with "Dashboard title cannot be empty".
+#   - nvidia-dcgm-dashboard.json is already raw, but still references its
+#     datasource via a ${DS_PROMETHEUS} __inputs template variable, which
+#     only Grafana's "Import" UI flow resolves — file provisioning leaves
+#     it as a literal unresolved string.
+#
+# This unwraps the API-import shape when present and resolves
+# ${DS_PROMETHEUS} to a fixed datasource uid either way. Re-run after
+# updating either vendored dashboard JSON in k3s/grafana/.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -23,7 +32,15 @@ for out_dir in "${OUT_DIRS[@]}"; do
   mkdir -p "$out_dir"
   for src in k3s/grafana/*.json; do
     name=$(basename "$src")
-    sed 's/\${DS_PROMETHEUS}/grafanacloud-prom/g' "$src" > "$out_dir/$name"
+    python3 -c "
+import json, sys
+with open('$src') as f:
+    d = json.load(f)
+d = d['dashboard'] if 'dashboard' in d and 'title' not in d else d
+text = json.dumps(d, indent=2)
+text = text.replace('\${DS_PROMETHEUS}', 'grafanacloud-prom')
+sys.stdout.write(text)
+" > "$out_dir/$name"
     echo "generated $out_dir/$name"
   done
 done

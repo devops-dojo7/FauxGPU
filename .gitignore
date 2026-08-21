@@ -7,3 +7,4 @@ node_modules/
 *.local.yaml
 .env
 .env.local
+.claude/
