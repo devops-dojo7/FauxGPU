@@ -181,7 +181,7 @@ export default function Home() {
         <header className="mb-8 flex flex-col gap-5">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-500 to-emerald-500 bg-clip-text text-transparent inline-block">
-              GPU Cluster Simulator
+              ErsatzGPU
             </h1>
             <p className="text-sm text-black/55 dark:text-white/55 mt-1.5 max-w-2xl">
               Learn how GPU training and inference actually work — VRAM, KV cache, NVLink/InfiniBand topology,

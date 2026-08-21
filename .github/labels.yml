@@ -1,0 +1,64 @@
+# Declarative label set, synced to the repo by .github/workflows/labels.yml
+# (crazy-max/ghaction-github-labeler) whenever this file changes on main.
+# Edit here, not in the GitHub UI — UI edits get overwritten on the next sync.
+
+- name: bug
+  color: "d73a4a"
+  description: Something isn't working
+- name: enhancement
+  color: "a2eeef"
+  description: New feature or request
+- name: documentation
+  color: "0075ca"
+  description: Improvements or additions to documentation
+- name: question
+  color: "d876e3"
+  description: Further information is requested
+- name: good first issue
+  color: "7057ff"
+  description: Good for newcomers
+- name: help wanted
+  color: "008672"
+  description: Extra attention is needed
+- name: needs-triage
+  color: "ededed"
+  description: Not yet assessed
+- name: wontfix
+  color: "ffffff"
+  description: This will not be worked on
+- name: duplicate
+  color: "cfd3d7"
+  description: This issue or pull request already exists
+- name: invalid
+  color: "e4e669"
+  description: This doesn't seem right
+- name: breaking-change
+  color: "b60205"
+  description: Changes existing behavior in a way that isn't backward-compatible
+- name: dependencies
+  color: "0366d6"
+  description: Python, npm, or Helm chart dependency updates
+- name: ci
+  color: "fbca04"
+  description: GitHub Actions workflows and CI/CD
+- name: e2e
+  color: "5319e7"
+  description: Triggers the full k3d cluster deploy in CI (see simgpu-e2e-reusable.yml)
+- name: security
+  color: "ee0701"
+  description: Security-relevant change or report
+- name: engine
+  color: "c5def5"
+  description: engine/ — the pure-Python calculation package
+- name: api
+  color: "c5def5"
+  description: api/ — the FastAPI service
+- name: web
+  color: "c5def5"
+  description: web/ — the Next.js frontend
+- name: k3s-helm
+  color: "c5def5"
+  description: k3s/ — the K3s/Helm fake-GPU simulation layer
+- name: observability
+  color: "bfd4f2"
+  description: Grafana, Prometheus, Langfuse, DCGM metrics

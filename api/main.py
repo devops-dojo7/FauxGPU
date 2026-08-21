@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
     task.cancel()
 
 
-app = FastAPI(title="GPU Cluster Simulator API", lifespan=lifespan)
+app = FastAPI(title="ErsatzGPU API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

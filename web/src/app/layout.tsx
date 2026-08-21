@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GPU Cluster Simulator",
+  title: "ErsatzGPU",
   description: "Learn GPU VRAM, KV cache, and cluster topology without needing real hardware.",
 };
 

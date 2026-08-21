@@ -1,6 +1,6 @@
 {
   "dashboard": {
-    "title": "GPU Cluster Simulator",
+    "title": "ErsatzGPU",
     "tags": ["simgpu"],
     "timezone": "browser",
     "schemaVersion": 39,

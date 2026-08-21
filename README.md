@@ -1,4 +1,4 @@
-# GPU Cluster Simulator
+# ErsatzGPU
 
 Learn how GPU training and inference actually work — VRAM, KV cache,
 NVLink/InfiniBand topology, [llm-d](https://llm-d.ai/)-style disaggregated
@@ -454,3 +454,17 @@ pulsing load on the dashboard, synced to the run's actual speedup: verified
 by sampling `DCGM_FI_DEV_POWER_USAGE` at 2s resolution during a live run and
 seeing it genuinely alternate between ~300W (compute phase) and ~240W
 (communication phase), not a flat line.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local dev setup, test/lint
+requirements, and the conventions used throughout this repo (the
+`enabled:`-flag Helm pattern, optional-integration shape, etc.).
+
+## License
+
+[MIT](LICENSE). Vendored third-party content — the community NVIDIA DCGM
+Grafana dashboard and Langfuse's self-host docker-compose — keeps its own
+upstream license; see the source comments in
+`scripts/generate-provisioned-dashboards.sh` and
+`k3s/observability/langfuse/docker-compose.langfuse.yml` for provenance.
