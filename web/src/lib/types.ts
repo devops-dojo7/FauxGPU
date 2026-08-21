@@ -232,7 +232,12 @@ export const MODEL_PRESETS: ModelPreset[] = [
   { id: "qwen2.5-7b", label: "Qwen2.5 7B", params: 7.6e9, num_layers: 28, hidden_dim: 3584, num_heads: 28, head_dim: 128, num_kv_heads: 4 },
   { id: "qwen2.5-72b", label: "Qwen2.5 72B", params: 72.7e9, num_layers: 80, hidden_dim: 8192, num_heads: 64, head_dim: 128, num_kv_heads: 8 },
   { id: "nemotron-4-340b", label: "NVIDIA Nemotron-4 340B", params: 340.0e9, num_layers: 96, hidden_dim: 18432, num_heads: 96, head_dim: 192, num_kv_heads: 8 },
+  { id: "llama3.1-8b", label: "Llama-3.1 8B", params: 8.03e9, num_layers: 32, hidden_dim: 4096, num_heads: 32, head_dim: 128, num_kv_heads: 8 },
+  { id: "llama3.1-70b", label: "Llama-3.1 70B", params: 70.6e9, num_layers: 80, hidden_dim: 8192, num_heads: 64, head_dim: 128, num_kv_heads: 8 },
+  { id: "llama3.1-405b", label: "Llama-3.1 405B", params: 405.0e9, num_layers: 126, hidden_dim: 16384, num_heads: 128, head_dim: 128, num_kv_heads: 8 },
+  { id: "gemma2-27b", label: "Gemma 2 27B", params: 27.2e9, num_layers: 46, hidden_dim: 4608, num_heads: 32, head_dim: 128, num_kv_heads: 16 },
   // MoE — `active_params` is what's touched per token; `params` is the total resident-in-VRAM count.
+  { id: "mixtral-8x7b", label: "Mixtral 8x7B (MoE)", params: 46.7e9, active_params: 12.9e9, num_layers: 32, hidden_dim: 4096, num_heads: 32, head_dim: 128, num_kv_heads: 8 },
   { id: "qwen3-235b-a22b", label: "Qwen3 235B-A22B (MoE)", params: 235.0e9, active_params: 22.0e9, num_layers: 94, hidden_dim: 4096, num_heads: 64, head_dim: 128, num_kv_heads: 4 },
   // MoE + MLA — `kv_latent_dim` replaces the head-count KV formula with DeepSeek-V3's compressed latent.
   { id: "deepseek-v3", label: "DeepSeek-V3 671B-A37B (MoE+MLA)", params: 671.0e9, active_params: 37.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576 },

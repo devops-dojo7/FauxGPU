@@ -90,6 +90,54 @@ gpus:
     tdp_watts: 750
     idle_watts: 100
 
+  - id: mi325x
+    vendor: AMD
+    name: MI325X 256GB
+    vram_gb: 256
+    mem_bandwidth_gbps: 6000
+    bf16_tflops: 1307
+    fp8_tflops: 2615
+    nvlink_gbps: 896 # Infinity Fabric, same CDNA 3 compute die as MI300X
+    price_per_hr_usd: 3.0
+    tdp_watts: 1000
+    idle_watts: 130
+
+  - id: b200-sxm
+    vendor: NVIDIA
+    name: B200 SXM 192GB
+    vram_gb: 192
+    mem_bandwidth_gbps: 8000
+    bf16_tflops: 2250
+    fp8_tflops: 4500
+    nvlink_gbps: 1800
+    price_per_hr_usd: 6.5
+    tdp_watts: 1000
+    idle_watts: 130
+
+  - id: rtx4090
+    vendor: NVIDIA
+    name: GeForce RTX 4090 24GB
+    vram_gb: 24
+    mem_bandwidth_gbps: 1008
+    bf16_tflops: 165
+    fp8_tflops: 330
+    nvlink_gbps: null # consumer card, PCIe only
+    price_per_hr_usd: 0.5
+    tdp_watts: 450
+    idle_watts: 20
+
+  - id: rtx5090
+    vendor: NVIDIA
+    name: GeForce RTX 5090 32GB
+    vram_gb: 32
+    mem_bandwidth_gbps: 1792
+    bf16_tflops: 210
+    fp8_tflops: 419
+    nvlink_gbps: null # consumer card, PCIe only
+    price_per_hr_usd: 0.7
+    tdp_watts: 575
+    idle_watts: 25
+
 # Interconnect fabrics used to join GPUs beyond a single NVLink domain (node-to-node).
 fabrics:
   - id: ethernet-100g
