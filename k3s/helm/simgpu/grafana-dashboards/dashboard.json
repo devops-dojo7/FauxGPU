@@ -1,0 +1,123 @@
+{
+  "dashboard": {
+    "title": "GPU Cluster Simulator",
+    "tags": ["simgpu"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "time": { "from": "now-1h", "to": "now" },
+    "refresh": "5s",
+    "annotations": {
+      "list": [
+        {
+          "name": "simgpu events",
+          "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+          "enable": true,
+          "iconColor": "rgba(255, 96, 96, 1)",
+          "tags": ["simgpu"],
+          "type": "tags"
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "type": "timeseries",
+        "title": "GPU Power Draw",
+        "description": "Estimated per-GPU power draw for tracked simulator runs.",
+        "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "fieldConfig": {
+          "defaults": { "unit": "watt", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "simgpu_run_power_watts",
+            "legendFormat": "{{run_id}} ({{model}} on {{gpu}})",
+            "refId": "A",
+            "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" }
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "type": "timeseries",
+        "title": "Tokens Seen",
+        "description": "Cumulative tokens processed per run.",
+        "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "fieldConfig": {
+          "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "simgpu_run_tokens_seen",
+            "legendFormat": "{{run_id}}",
+            "refId": "A",
+            "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" }
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "type": "state-timeline",
+        "title": "Run Status",
+        "description": "1 = running, 0 = done.",
+        "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+        "gridPos": { "h": 6, "w": 12, "x": 0, "y": 8 },
+        "targets": [
+          {
+            "expr": "simgpu_run_status",
+            "legendFormat": "{{run_id}} ({{model}} on {{gpu}}, {{topology}})",
+            "refId": "A",
+            "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" }
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "type": "timeseries",
+        "title": "Step Progress",
+        "description": "Current step vs. total configured steps, per run.",
+        "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+        "gridPos": { "h": 6, "w": 12, "x": 12, "y": 8 },
+        "fieldConfig": {
+          "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+          "overrides": []
+        },
+        "targets": [
+          {
+            "expr": "simgpu_run_step",
+            "legendFormat": "{{run_id}} step",
+            "refId": "A",
+            "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" }
+          },
+          {
+            "expr": "simgpu_run_total_steps",
+            "legendFormat": "{{run_id}} total",
+            "refId": "B",
+            "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" }
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "type": "stat",
+        "title": "Currently Running",
+        "description": "Number of simulator runs currently reporting status=running.",
+        "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+        "gridPos": { "h": 4, "w": 24, "x": 0, "y": 14 },
+        "targets": [
+          {
+            "expr": "sum(simgpu_run_status)",
+            "legendFormat": "running",
+            "refId": "A",
+            "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" }
+          }
+        ]
+      }
+    ]
+  },
+  "overwrite": false
+}

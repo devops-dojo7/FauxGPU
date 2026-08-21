@@ -1,0 +1,13 @@
+{{- if .Values.observability.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: simgpu-grafana-dashboards
+  labels:
+    grafana_dashboard: "1"
+data:
+  dashboard.json: |
+{{ .Files.Get "grafana-dashboards/dashboard.json" | indent 4 }}
+  nvidia-dcgm-dashboard.json: |
+{{ .Files.Get "grafana-dashboards/nvidia-dcgm-dashboard.json" | indent 4 }}
+{{- end }}

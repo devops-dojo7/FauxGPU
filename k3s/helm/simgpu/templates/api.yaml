@@ -46,5 +46,6 @@ spec:
   selector:
     app: simgpu-api
   ports:
-    - port: {{ .Values.api.port }}
+    - name: http
+      port: {{ .Values.api.port }}
       targetPort: {{ .Values.api.port }}

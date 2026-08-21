@@ -1,0 +1,16 @@
+{{- if and .Values.observability.enabled .Values.observability.prometheusServiceMonitor }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: simgpu-api
+  labels:
+    app: simgpu-api
+spec:
+  selector:
+    matchLabels:
+      app: simgpu-api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 5s
+{{- end }}

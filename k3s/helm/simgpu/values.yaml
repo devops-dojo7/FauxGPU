@@ -82,3 +82,12 @@ grafana:
   remoteWriteUrl: ""
   promUsername: ""
   promToken: ""
+
+# In-cluster observability stack — a ServiceMonitor for simgpu-api plus
+# ConfigMaps wrapping the two existing k3s/grafana/*.json dashboards for
+# kube-prometheus-stack's Grafana sidecar to auto-discover. Requires
+# kube-prometheus-stack already installed (prerequisite, same pattern as
+# fake-gpu-operator/KWOK above) — see README "Observability stack".
+observability:
+  enabled: false
+  prometheusServiceMonitor: true

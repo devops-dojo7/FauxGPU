@@ -258,6 +258,58 @@ helm upgrade simgpu k3s/helm/simgpu \
 kubectl get nodes -l type=kwok
 ```
 
+## Observability stack: Grafana + Prometheus + Langfuse
+
+A self-contained observability stack you run yourself, no external Grafana
+Cloud account needed (that's the separate section below).
+
+### docker-compose (local dev, no cluster needed)
+
+```bash
+docker compose up                                             # simulator only: api :8000, web :3000
+docker compose --profile observability up                     # + prometheus :9090, grafana :3001
+docker compose --profile langfuse up                          # + langfuse :3002 and its storage stack
+docker compose --profile observability --profile langfuse up  # everything
+```
+
+Grafana comes pre-provisioned with the same two dashboards used by the K3s
+Grafana Cloud integration (`k3s/grafana/dashboard.json`,
+`nvidia-dcgm-dashboard.json`) via the resolved copies in
+`k3s/observability/grafana-provisioning/dashboards/generated/` — regenerate
+those (and the Helm chart's copy) with
+`./scripts/generate-provisioned-dashboards.sh` after editing either
+vendored dashboard JSON. Langfuse is vendored from its own published
+compose file at `k3s/observability/langfuse/docker-compose.langfuse.yml`
+(see that file's header for the two port remaps applied to avoid colliding
+with this project's own :3000/:9090). On first Langfuse boot, open
+http://localhost:3002, create an org/project, and copy the public/secret
+key pair into `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` env vars for the
+`api` service to enable tracing (see "Langfuse tracing" below once wired
+up).
+
+### K8s / Helm (in-cluster)
+
+Requires two upstream charts installed first — this project only adds a
+`ServiceMonitor` and dashboard `ConfigMap` on top rather than reimplementing
+either:
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  --namespace monitoring --create-namespace
+
+helm repo add langfuse https://langfuse.github.io/langfuse-k8s
+helm install langfuse langfuse/langfuse --namespace langfuse --create-namespace
+
+helm upgrade simgpu k3s/helm/simgpu --set observability.enabled=true
+```
+
+`observability.enabled=true` renders a `ServiceMonitor` for `simgpu-api`
+(picked up automatically by kube-prometheus-stack's Prometheus Operator)
+and a `ConfigMap` wrapping the same two dashboards, labeled
+`grafana_dashboard: "1"` for kube-prometheus-stack's Grafana sidecar to
+auto-load.
+
 ## Optional: Grafana Cloud integration
 
 Off by default. To enable, get two credentials from your Grafana Cloud org
