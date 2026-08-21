@@ -262,6 +262,8 @@ deploy time — never committed to `values.yaml`.
 
 ## Roadmap, and contributing
 
+Live status board: [ErsatzGPU Roadmap](https://github.com/orgs/devops-dojo7/projects/1).
+
 Built and verified so far: the calculation engine and FastAPI service;
 the Next.js site; the K3s fake-GPU device-plugin layer; the llm-d-style
 inference simulator; architecture-aware model formulas (GQA/MoE/MLA);
