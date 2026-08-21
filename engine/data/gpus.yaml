@@ -1,0 +1,108 @@
+# GPU/vendor spec + pricing table.
+# Specs are vendor-published nameplate numbers (dense, not sparsity-boosted).
+# Prices are illustrative on-demand $/hr snapshots — refresh periodically, not live data.
+# bf16_tflops / fp8_tflops: dense tensor-core throughput.
+# mem_bandwidth_gbps: HBM bandwidth in GB/s.
+# nvlink_gbps: bidirectional NVLink (or equivalent) bandwidth per GPU, null if none (PCIe only).
+# tdp_watts: vendor-published max board power (TDP). idle_watts: approximate idle/low-power draw.
+gpus:
+  - id: h100-sxm
+    vendor: NVIDIA
+    name: H100 SXM5 80GB
+    vram_gb: 80
+    mem_bandwidth_gbps: 3350
+    bf16_tflops: 989
+    fp8_tflops: 1979
+    nvlink_gbps: 900
+    price_per_hr_usd: 4.5
+    tdp_watts: 700
+    idle_watts: 90
+
+  - id: h100-pcie
+    vendor: NVIDIA
+    name: H100 PCIe 80GB
+    vram_gb: 80
+    mem_bandwidth_gbps: 2000
+    bf16_tflops: 756
+    fp8_tflops: 1513
+    nvlink_gbps: null
+    price_per_hr_usd: 3.5
+    tdp_watts: 350
+    idle_watts: 50
+
+  - id: h200-sxm
+    vendor: NVIDIA
+    name: H200 SXM 141GB
+    vram_gb: 141
+    mem_bandwidth_gbps: 4800
+    bf16_tflops: 989
+    fp8_tflops: 1979
+    nvlink_gbps: 900
+    price_per_hr_usd: 6.5
+    tdp_watts: 700
+    idle_watts: 90
+
+  - id: a100-80gb-sxm
+    vendor: NVIDIA
+    name: A100 SXM4 80GB
+    vram_gb: 80
+    mem_bandwidth_gbps: 2039
+    bf16_tflops: 312
+    fp8_tflops: null
+    nvlink_gbps: 600
+    price_per_hr_usd: 2.0
+    tdp_watts: 400
+    idle_watts: 60
+
+  - id: a100-40gb-sxm
+    vendor: NVIDIA
+    name: A100 SXM4 40GB
+    vram_gb: 40
+    mem_bandwidth_gbps: 1555
+    bf16_tflops: 312
+    fp8_tflops: null
+    nvlink_gbps: 600
+    price_per_hr_usd: 1.5
+    tdp_watts: 400
+    idle_watts: 60
+
+  - id: l40s
+    vendor: NVIDIA
+    name: L40S 48GB
+    vram_gb: 48
+    mem_bandwidth_gbps: 864
+    bf16_tflops: 362
+    fp8_tflops: 733
+    nvlink_gbps: null
+    price_per_hr_usd: 1.25
+    tdp_watts: 350
+    idle_watts: 40
+
+  - id: mi300x
+    vendor: AMD
+    name: MI300X 192GB
+    vram_gb: 192
+    mem_bandwidth_gbps: 5300
+    bf16_tflops: 1307
+    fp8_tflops: 2615
+    nvlink_gbps: 896 # Infinity Fabric
+    price_per_hr_usd: 3.5
+    tdp_watts: 750
+    idle_watts: 100
+
+# Interconnect fabrics used to join GPUs beyond a single NVLink domain (node-to-node).
+fabrics:
+  - id: ethernet-100g
+    name: 100GbE (RoCE/TCP)
+    bandwidth_gbps: 100
+    latency_us: 10
+
+  - id: infiniband-hdr
+    name: InfiniBand HDR (200Gb/s)
+    bandwidth_gbps: 200
+    latency_us: 1.0
+
+  - id: infiniband-ndr
+    name: InfiniBand NDR (400Gb/s)
+    bandwidth_gbps: 400
+    latency_us: 0.7

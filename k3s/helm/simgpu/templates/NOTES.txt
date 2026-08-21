@@ -1,0 +1,19 @@
+simgpu is deployed.
+
+Check simulated GPU resources registered on each node:
+  kubectl describe nodes | grep -A5 "simgpu.dev/gpu"
+
+Watch the sample trainer job get scheduled and simulate training steps:
+  kubectl get pods -l app=simgpu-trainer
+  kubectl logs -f job/simgpu-trainer
+
+Reach the API:
+  kubectl port-forward svc/simgpu-api 8000:8000
+
+{{- if .Values.web.enabled }}
+Reach the website (the trainer Job reports its progress here live, under
+"Live training run" — note the website's browser-side calls need
+NEXT_PUBLIC_API_URL baked in at image build time, so also port-forward the API):
+  kubectl port-forward svc/simgpu-web 3000:3000
+  kubectl port-forward svc/simgpu-api 8000:8000
+{{- end }}

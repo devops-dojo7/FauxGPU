@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simgpu-api
+  labels:
+    app: simgpu-api
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      app: simgpu-api
+  template:
+    metadata:
+      labels:
+        app: simgpu-api
+    spec:
+      serviceAccountName: simgpu-api
+      containers:
+        - name: api
+          image: {{ .Values.api.image }}
+          imagePullPolicy: {{ .Values.api.imagePullPolicy }}
+          env:
+            - name: TRAINER_IMAGE
+              value: {{ .Values.trainer.image }}
+            - name: SIMGPU_RESOURCE_NAME
+              value: {{ .Values.devicePlugin.resourceName | quote }}
+            - name: API_PORT
+              value: {{ .Values.api.port | quote }}
+          {{- if .Values.grafana.enabled }}
+          envFrom:
+            - secretRef:
+                name: simgpu-grafana
+          {{- end }}
+          ports:
+            - containerPort: {{ .Values.api.port }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.api.port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: simgpu-api
+spec:
+  selector:
+    app: simgpu-api
+  ports:
+    - port: {{ .Values.api.port }}
+      targetPort: {{ .Values.api.port }}

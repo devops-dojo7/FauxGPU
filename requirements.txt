@@ -1,0 +1,7 @@
+pyyaml
+pytest
+fastapi
+uvicorn[standard]
+kubernetes
+requests
+prometheus-remote-writer

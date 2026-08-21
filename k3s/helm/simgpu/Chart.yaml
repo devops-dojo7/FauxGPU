@@ -1,0 +1,6 @@
+apiVersion: v2
+name: simgpu
+description: Simulated GPU cluster for learning K8s GPU scheduling and distributed training mechanics
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

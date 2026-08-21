@@ -1,0 +1,38 @@
+{{- if .Values.web.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simgpu-web
+  labels:
+    app: simgpu-web
+spec:
+  replicas: {{ .Values.web.replicas }}
+  selector:
+    matchLabels:
+      app: simgpu-web
+  template:
+    metadata:
+      labels:
+        app: simgpu-web
+    spec:
+      containers:
+        - name: web
+          image: {{ .Values.web.image }}
+          imagePullPolicy: {{ .Values.web.imagePullPolicy }}
+          env:
+            - name: HOSTNAME
+              value: "0.0.0.0"
+          ports:
+            - containerPort: {{ .Values.web.port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: simgpu-web
+spec:
+  selector:
+    app: simgpu-web
+  ports:
+    - port: {{ .Values.web.port }}
+      targetPort: {{ .Values.web.port }}
+{{- end }}

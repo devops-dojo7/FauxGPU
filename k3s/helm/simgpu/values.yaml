@@ -1,0 +1,54 @@
+devicePlugin:
+  image: simgpu/device-plugin:dev
+  imagePullPolicy: IfNotPresent
+  resourceName: simgpu.dev/gpu
+  gpuModel: h100-sxm
+  gpuCount: 8
+
+api:
+  image: simgpu/api:dev
+  imagePullPolicy: IfNotPresent
+  replicas: 1
+  port: 8000
+
+web:
+  enabled: true
+  image: simgpu/web:dev
+  imagePullPolicy: IfNotPresent
+  replicas: 1
+  port: 3000
+
+trainer:
+  enabled: true
+  image: simgpu/trainer:dev
+  imagePullPolicy: IfNotPresent
+  modelPreset: llama2-7b
+  gpuModel: h100-sxm
+  topologyShape: nvlink_node
+  gpusPerNode: 8
+  numNodes: 1
+  fabricId: infiniband-hdr
+  precision: bf16
+  tokensPerStep: 32768
+  totalSteps: 50
+  speedup: 200
+  gpusRequested: 8
+
+# Optional Grafana Cloud integration — disabled by default. All values here
+# are secrets; leave this file's defaults empty and pass real values at
+# deploy time only, e.g.:
+#   helm upgrade simgpu k3s/helm/simgpu \
+#     --set grafana.enabled=true \
+#     --set-string grafana.url=https://yourorg.grafana.net \
+#     --set-string grafana.apiKey=glsa_... \
+#     --set-string grafana.remoteWriteUrl=https://prometheus-prod-XX.../api/prom/push \
+#     --set-string grafana.promUsername=123456 \
+#     --set-string grafana.promToken=glc_...
+# Never commit real values for these into values.yaml.
+grafana:
+  enabled: false
+  url: ""
+  apiKey: ""
+  remoteWriteUrl: ""
+  promUsername: ""
+  promToken: ""

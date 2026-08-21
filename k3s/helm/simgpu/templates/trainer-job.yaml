@@ -1,0 +1,50 @@
+{{- if .Values.trainer.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: simgpu-trainer
+  labels:
+    app: simgpu-trainer
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: simgpu-trainer
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: trainer
+          image: {{ .Values.trainer.image }}
+          imagePullPolicy: {{ .Values.trainer.imagePullPolicy }}
+          env:
+            - name: MODEL_PRESET
+              value: {{ .Values.trainer.modelPreset | quote }}
+            - name: SIMGPU_MODEL
+              value: {{ .Values.trainer.gpuModel | quote }}
+            - name: TOPOLOGY_SHAPE
+              value: {{ .Values.trainer.topologyShape | quote }}
+            - name: SIMGPU_COUNT
+              value: {{ .Values.trainer.gpusPerNode | quote }}
+            - name: NUM_NODES
+              value: {{ .Values.trainer.numNodes | quote }}
+            - name: FABRIC_ID
+              value: {{ .Values.trainer.fabricId | quote }}
+            - name: PRECISION
+              value: {{ .Values.trainer.precision | quote }}
+            - name: TOKENS_PER_STEP
+              value: {{ .Values.trainer.tokensPerStep | quote }}
+            - name: TOTAL_STEPS
+              value: {{ .Values.trainer.totalSteps | quote }}
+            - name: SPEEDUP
+              value: {{ .Values.trainer.speedup | quote }}
+            - name: API_URL
+              value: "http://simgpu-api:{{ .Values.api.port }}"
+            - name: RUN_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            limits:
+              {{ .Values.devicePlugin.resourceName }}: {{ .Values.trainer.gpusRequested | quote }}
+{{- end }}
