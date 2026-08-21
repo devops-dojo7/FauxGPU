@@ -85,14 +85,27 @@ All phases are built and verified:
   annotations for both an in-process simulated run and the real
   Helm-deployed trainer Job landed and were queried back successfully, and
   a manual push sent 4 real samples into the Prometheus/Mimir datasource.
-- **Phase 10 (in progress):** mock-datacenter platform expansion — an opt-in
+- **Phase 10:** mock-datacenter platform expansion. An opt-in
   `gpuBackend: fake-gpu-operator` mode (see "Datacenter mode" below) targeting
   [run-ai/fake-gpu-operator](https://github.com/run-ai/fake-gpu-operator) for
-  MIG/DRA and a 100+ node KWOK-simulated fleet, plus (planned) a full
-  Grafana+Prometheus+Langfuse observability stack, real per-request inference
-  tracing, and a reusable CI/CD template for testing against the mock
-  cluster. See `/home/kumail/.claude/plans/transient-swimming-heron.md` for
-  the full phased plan.
+  MIG/DRA and an opt-in 100+ node KWOK-simulated fleet (`fleet.enabled`);
+  a full Grafana+Prometheus+Langfuse observability stack runnable both via
+  docker-compose (`docker compose --profile observability --profile
+  langfuse up`) and in-cluster (`observability.enabled`/`langfuse.enabled`
+  Helm flags), reusing the existing dashboards rather than reinventing them;
+  real per-request inference tracing — a new streaming `POST
+  /inference/stream` endpoint (`api/routers/inference_stream.py`) gives the
+  website's playgrounds a real backend round trip for the first time, and a
+  new long-running `k3s/inference-server` (OpenAI-Completions-shaped,
+  launched on demand via `POST /inference/launch-k8s-server`) lets a real
+  client's requests against the mock cluster produce real Langfuse traces
+  too; and a reusable GitHub Actions e2e workflow
+  (`.github/workflows/simgpu-e2e-reusable.yml`, documented for reuse in
+  `ci-templates/README.md`) that spins up a real k3d cluster, deploys the
+  chart, and asserts GPU scheduling + a training run + a real inference
+  round trip all work, which this repo's own CI also dogfoods. See
+  `/home/kumail/.claude/plans/transient-swimming-heron.md` for the full
+  phased plan and what was verified at each step.
 
 See `/home/kumail/.claude/plans/calm-fluttering-teapot.md` for the plan
 covering phases 1-9.

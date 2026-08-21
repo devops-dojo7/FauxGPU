@@ -1,0 +1,112 @@
+name: simgpu mock-datacenter e2e (reusable)
+
+# Spins up a real k3d cluster, deploys this project's Helm chart against
+# it, and asserts the mock datacenter actually works end-to-end (GPU
+# scheduling, a training run, and a real inference request round trip)
+# before tearing everything down. Designed to be called two ways:
+#
+#   1. From this repo's own CI (.github/workflows/ci.yml) via
+#      `uses: ./.github/workflows/simgpu-e2e-reusable.yml`.
+#   2. From any other repo, directly:
+#        uses: <org>/gpu-cluster-simulator/.github/workflows/simgpu-e2e-reusable.yml@main
+#      — see ci-templates/README.md for a full example caller workflow.
+#
+# gpu-backend lets a caller exercise either the built-in lightweight
+# device-plugin or the fake-gpu-operator integration (see README
+# "Datacenter mode") without duplicating this workflow.
+
+on:
+  workflow_call:
+    inputs:
+      gpu-backend:
+        description: "simgpu (built-in device-plugin) or fake-gpu-operator"
+        type: string
+        default: simgpu
+      k3d-version:
+        type: string
+        default: v5.7.4
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install k3d
+        run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${{ inputs.k3d-version }} bash
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.15.0
+
+      - name: Create k3d cluster
+        run: k3d cluster create simgpu-ci --agents 2 --wait --timeout 120s
+
+      - name: Build images
+        run: |
+          docker build -t simgpu/device-plugin:ci -f k3s/device-plugin/Dockerfile k3s/device-plugin
+          docker build -t simgpu/api:ci -f api/Dockerfile .
+          docker build -t simgpu/trainer:ci -f k3s/trainer/Dockerfile .
+          docker build -t simgpu/inference-server:ci -f k3s/inference-server/Dockerfile .
+          docker build -t simgpu/web:ci web
+
+      - name: Load images into k3d
+        run: |
+          k3d image import \
+            simgpu/device-plugin:ci simgpu/api:ci simgpu/trainer:ci \
+            simgpu/inference-server:ci simgpu/web:ci \
+            -c simgpu-ci
+
+      - name: Install fake-gpu-operator
+        if: inputs.gpu-backend == 'fake-gpu-operator'
+        run: |
+          helm install fake-gpu-operator oci://ghcr.io/run-ai/fake-gpu-operator \
+            --namespace fake-gpu-operator --create-namespace \
+            --set topology.nodePools.default.gpuProduct=H100-SXM5-80GB \
+            --set topology.nodePools.default.gpuCount=8 \
+            --set topology.nodePools.default.gpuMemory=81920 \
+            --wait --timeout 120s
+          for node in $(kubectl get nodes -o name); do
+            kubectl label "$node" run.ai/simulated-gpu-node-pool=default --overwrite
+          done
+
+      - name: Deploy simgpu chart
+        run: |
+          helm install simgpu k3s/helm/simgpu \
+            --set gpuBackend=${{ inputs.gpu-backend }} \
+            --set devicePlugin.image=simgpu/device-plugin:ci \
+            --set api.image=simgpu/api:ci \
+            --set trainer.image=simgpu/trainer:ci \
+            --set inferenceServer.image=simgpu/inference-server:ci \
+            --set web.image=simgpu/web:ci \
+            --set trainer.enabled=false \
+            --wait --timeout 180s
+
+      - name: Wait for API readiness
+        run: kubectl wait --for=condition=ready pod -l app=simgpu-api --timeout=120s
+
+      - name: Port-forward API
+        run: |
+          kubectl port-forward svc/simgpu-api 8000:8000 &
+          echo $! > /tmp/port-forward.pid
+          sleep 3
+
+      - name: Run smoke assertions
+        run: API_URL=http://localhost:8000 ./scripts/ci-smoke.sh
+
+      - name: Stop port-forward
+        if: always()
+        run: kill "$(cat /tmp/port-forward.pid)" 2>/dev/null || true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run pytest suite
+        run: |
+          pip install -r requirements.txt
+          pytest tests/ -v
+
+      - name: Teardown cluster
+        if: always()
+        run: k3d cluster delete simgpu-ci
