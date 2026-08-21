@@ -1,3 +1,5 @@
+<img src="assets/logo.png" width="280px" alt="ErsatzGPU logo">
+
 [![CI](https://github.com/devops-dojo7/ErsatzGPU/actions/workflows/ci.yml/badge.svg)](https://github.com/devops-dojo7/ErsatzGPU/actions/workflows/ci.yml)
 [![LICENSE](https://img.shields.io/github/license/devops-dojo7/ErsatzGPU.svg)](/LICENSE)
 
