@@ -220,18 +220,29 @@ metrics — this project can instead target
 (Apache 2.0), installed as a prerequisite:
 
 ```bash
-# install fake-gpu-operator itself (a separate Helm release, its own namespace)
-helm install fake-gpu-operator oci://ghcr.io/run-ai/fake-gpu-operator \
-  --namespace fake-gpu-operator --create-namespace \
-  --set topology.nodePools.default.gpuProduct=H100-SXM5-80GB \
-  --set topology.nodePools.default.gpuCount=8 \
-  --set topology.nodePools.default.gpuMemory=81920
-
-# label the nodes it should treat as GPU nodes (matches the pool above)
+# label the nodes it should treat as GPU nodes *before* installing —
+# its status-updater only reacts to already-labeled nodes
 kubectl label node k3d-simgpu-agent-0 run.ai/simulated-gpu-node-pool=default
 kubectl label node k3d-simgpu-agent-1 run.ai/simulated-gpu-node-pool=default
+kubectl label node k3d-simgpu-server-0 run.ai/simulated-gpu-node-pool=default
 
-# point this chart at it instead of the built-in device-plugin
+# install fake-gpu-operator itself (a separate Helm release, its own
+# namespace; note the repeated /fake-gpu-operator path segment and the
+# required --version — check https://github.com/run-ai/fake-gpu-operator/pkgs/container/fake-gpu-operator%2Ffake-gpu-operator
+# for the latest tag). runtimeClass.enabled=false because k3s/k3d already
+# ships its own "nvidia" RuntimeClass and Helm refuses to adopt it.
+helm upgrade -i fake-gpu-operator oci://ghcr.io/run-ai/fake-gpu-operator/fake-gpu-operator \
+  --namespace fake-gpu-operator --create-namespace \
+  --version 0.2.0 \
+  --set topology.nodePools.default.gpuProduct=H100-SXM5-80GB \
+  --set topology.nodePools.default.gpuCount=8 \
+  --set topology.nodePools.default.gpuMemory=81920 \
+  --set runtimeClass.enabled=false
+
+# point this chart at it instead of the built-in device-plugin (delete any
+# already-completed trainer Job first — Job pod specs are immutable, so
+# helm upgrade can't rewrite one in place)
+kubectl delete job simgpu-trainer --ignore-not-found
 helm upgrade simgpu k3s/helm/simgpu --set gpuBackend=fake-gpu-operator
 ```
 
@@ -259,8 +270,8 @@ kubectl apply -f "https://github.com/kubernetes-sigs/kwok/releases/download/${KW
 kubectl apply -f "https://github.com/kubernetes-sigs/kwok/releases/download/${KWOK_VERSION}/stage-fast.yaml"
 
 # enable fake-gpu-operator's KWOK device plugin
-helm upgrade fake-gpu-operator oci://ghcr.io/run-ai/fake-gpu-operator \
-  --namespace fake-gpu-operator --reuse-values \
+helm upgrade fake-gpu-operator oci://ghcr.io/run-ai/fake-gpu-operator/fake-gpu-operator \
+  --namespace fake-gpu-operator --reuse-values --version 0.2.0 \
   --set kwokGpuDevicePlugin.enabled=true
 
 # render 100 fake GPU nodes
