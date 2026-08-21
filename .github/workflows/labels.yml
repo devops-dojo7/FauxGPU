@@ -9,6 +9,8 @@ on:
 jobs:
   labels:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - uses: actions/checkout@v4
       - uses: crazy-max/ghaction-github-labeler@v6
