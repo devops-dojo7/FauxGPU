@@ -42,6 +42,10 @@ def is_available() -> bool:
     return _in_cluster and bool(os.environ.get("TRAINER_IMAGE"))
 
 
+def inference_available() -> bool:
+    return _in_cluster and bool(os.environ.get("INFERENCE_SERVER_IMAGE"))
+
+
 def launch_job(
     model_label: str,
     model_params: dict,
@@ -112,3 +116,49 @@ def launch_job(
 
     client.BatchV1Api().create_namespaced_job(namespace=_namespace(), body=manifest)
     return job_name
+
+
+def launch_inference_job(model_preset: str, gpu_id: str, precision: str) -> str:
+    """Unlike launch_job()'s one-shot batch/v1 Job, the inference server is
+    long-running — a Deployment + Service, matching k3s/inference-server's
+    real HTTP server (see api/routers/inference.py for the callers)."""
+    if not inference_available():
+        raise RuntimeError("inference server launching is not available (not running in-cluster, or INFERENCE_SERVER_IMAGE unset)")
+
+    name = f"simgpu-inference-{uuid.uuid4().hex[:8]}"
+    inference_image = os.environ["INFERENCE_SERVER_IMAGE"]
+
+    env_list = [
+        {"name": "MODEL_PRESET", "value": model_preset},
+        {"name": "SIMGPU_MODEL", "value": gpu_id},
+        {"name": "PRECISION", "value": precision},
+    ]
+    if os.environ.get("LANGFUSE_PUBLIC_KEY"):
+        env_list.append({"name": "LANGFUSE_PUBLIC_KEY", "value": os.environ["LANGFUSE_PUBLIC_KEY"]})
+        env_list.append({"name": "LANGFUSE_SECRET_KEY", "value": os.environ["LANGFUSE_SECRET_KEY"]})
+        env_list.append({"name": "LANGFUSE_HOST", "value": os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com")})
+
+    deployment = {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {"name": name, "labels": {"app": name, "launched-by": "simgpu-api"}},
+        "spec": {
+            "replicas": 1,
+            "selector": {"matchLabels": {"app": name}},
+            "template": {
+                "metadata": {"labels": {"app": name}},
+                "spec": {"containers": [{"name": "inference-server", "image": inference_image, "env": env_list, "ports": [{"containerPort": 9000}]}]},
+            },
+        },
+    }
+    service = {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {"name": name},
+        "spec": {"selector": {"app": name}, "ports": [{"port": 9000, "targetPort": 9000}]},
+    }
+
+    namespace = _namespace()
+    client.AppsV1Api().create_namespaced_deployment(namespace=namespace, body=deployment)
+    client.CoreV1Api().create_namespaced_service(namespace=namespace, body=service)
+    return name

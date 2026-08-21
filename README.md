@@ -168,11 +168,12 @@ Verified against a local [k3d](https://k3d.io) cluster:
 docker build -t simgpu/device-plugin:dev -f k3s/device-plugin/Dockerfile k3s/device-plugin
 docker build -t simgpu/api:dev -f api/Dockerfile .
 docker build -t simgpu/trainer:dev -f k3s/trainer/Dockerfile .
+docker build -t simgpu/inference-server:dev -f k3s/inference-server/Dockerfile .
 docker build -t simgpu/web:dev web
 
 # spin up a cluster and load the images
 k3d cluster create simgpu --agents 2 --wait
-k3d image import simgpu/device-plugin:dev simgpu/api:dev simgpu/trainer:dev simgpu/web:dev -c simgpu
+k3d image import simgpu/device-plugin:dev simgpu/api:dev simgpu/trainer:dev simgpu/inference-server:dev simgpu/web:dev -c simgpu
 
 # deploy
 helm install simgpu k3s/helm/simgpu
@@ -309,6 +310,42 @@ helm upgrade simgpu k3s/helm/simgpu --set observability.enabled=true
 and a `ConfigMap` wrapping the same two dashboards, labeled
 `grafana_dashboard: "1"` for kube-prometheus-stack's Grafana sidecar to
 auto-load.
+
+### Langfuse tracing of individual inference requests
+
+Everything above is infra-level gauges (power, step, tokens/sec). Langfuse
+traces individual LLM *requests* — TTFT/decode spans, tokens/sec, cost per
+prompt — teaching request-level LLM observability on top of the simulated
+numbers. Off by default; wire it up the same way as Grafana Cloud below:
+
+```bash
+helm upgrade simgpu k3s/helm/simgpu \
+  --set langfuse.enabled=true \
+  --set-string langfuse.publicKey=pk-lf-... \
+  --set-string langfuse.secretKey=sk-lf-... \
+  --set-string langfuse.host=http://langfuse-web.langfuse.svc:3000  # or your Langfuse Cloud host
+```
+
+Locally (docker-compose or plain `uvicorn`), just set
+`LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY`/`LANGFUSE_HOST` env vars for the
+`api` process. Check `GET /langfuse/status` to confirm it's wired up. Two
+things get traced, both via `api/langfuse_client.py`:
+
+- **The website's playgrounds** (Live prompt playground, Multi-request
+  playground) — `POST /inference/stream` (SSE) is what makes these send
+  real prompt/timing data to the backend at all; each request that
+  completes emits one Langfuse trace with a `prefill` span and a `decode`
+  generation.
+- **Real workloads against the mock cluster** — `k3s/inference-server`
+  (built from `k3s/inference-server/Dockerfile`) is a real, long-running
+  FastAPI process exposing an OpenAI-Completions-shaped `/v1/completions`
+  endpoint backed by the same simulated timing, launched on demand via
+  `POST /inference/launch-k8s-server` (mirrors the existing
+  `POST /runs/launch-k8s-job` training-Job launcher, but as a
+  Deployment+Service since it's long-running, not one-shot). Point a real
+  client — `curl`, the `openai` SDK — at the resulting Service and its
+  requests produce real Langfuse traces flowing through the simulated
+  GPU-backed infra.
 
 ## Optional: Grafana Cloud integration
 

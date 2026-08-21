@@ -5,3 +5,5 @@ uvicorn[standard]
 kubernetes
 requests
 prometheus-remote-writer
+sse-starlette
+langfuse

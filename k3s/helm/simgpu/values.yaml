@@ -64,6 +64,12 @@ trainer:
   speedup: 200
   gpusRequested: 8
 
+# The real long-running inference server (k3s/inference-server), launched
+# on demand via POST /inference/launch-k8s-server rather than deployed
+# standing up-front like trainer/web above.
+inferenceServer:
+  image: simgpu/inference-server:dev
+
 # Optional Grafana Cloud integration — disabled by default. All values here
 # are secrets; leave this file's defaults empty and pass real values at
 # deploy time only, e.g.:
@@ -91,3 +97,17 @@ grafana:
 observability:
   enabled: false
   prometheusServiceMonitor: true
+
+# Optional Langfuse tracing of individual inference requests — disabled by
+# default. Same secret-handling convention as grafana above: leave these
+# blank and pass real values at deploy time only, e.g.:
+#   helm upgrade simgpu k3s/helm/simgpu \
+#     --set langfuse.enabled=true \
+#     --set-string langfuse.publicKey=pk-lf-... \
+#     --set-string langfuse.secretKey=sk-lf-...
+# Never commit real values for these into values.yaml.
+langfuse:
+  enabled: false
+  publicKey: ""
+  secretKey: ""
+  host: "https://cloud.langfuse.com"

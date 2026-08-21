@@ -2,7 +2,8 @@
 
 import { useEffect, useReducer, useRef, useState } from "react";
 import { GpuSpec, ModelShape } from "@/lib/types";
-import { checkVramFit, decodeStepMs, estimateTokens, prefillMs } from "@/lib/simEngine";
+import { checkVramFit, estimateTokens } from "@/lib/simEngine";
+import { streamInference } from "@/lib/api";
 import { Card, NumberInput, Stat } from "./ui";
 
 interface Lane {
@@ -29,7 +30,17 @@ function makeLane(prompt: string): Lane {
   return { id: nextLaneId++, prompt, maxOutputTokens: 60, promptTokens: 0, status: "idle", generated: 0, ttftMs: null };
 }
 
-export function MultiRequestPlayground({ model, gpu, precision }: { model: ModelShape; gpu: GpuSpec | undefined; precision: string }) {
+export function MultiRequestPlayground({
+  model,
+  modelLabel,
+  gpu,
+  precision,
+}: {
+  model: ModelShape;
+  modelLabel?: string;
+  gpu: GpuSpec | undefined;
+  precision: string;
+}) {
   const [lanes, setLanes] = useState<Lane[]>(() => DEFAULT_PROMPTS.slice(0, 2).map(makeLane));
   const [cacheHitPct, setCacheHitPct] = useState(20);
   const [running, setRunning] = useState(false);
@@ -38,10 +49,9 @@ export function MultiRequestPlayground({ model, gpu, precision }: { model: Model
 
   const lanesRef = useRef<Lane[]>(lanes);
   const runIdRef = useRef(0);
-  const decodeLoopActiveRef = useRef(false);
   const overallStartRef = useRef(0);
-  const totalGeneratedAtFirstTokenRef = useRef(0);
   const firstTokenAtRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
   const [measuredTokensPerSec, setMeasuredTokensPerSec] = useState(0);
 
   useEffect(() => {
@@ -67,11 +77,19 @@ export function MultiRequestPlayground({ model, gpu, precision }: { model: Model
 
   const stop = () => {
     runIdRef.current += 1;
-    decodeLoopActiveRef.current = false;
+    abortRef.current?.abort();
     setRunning(false);
   };
 
-  const runAll = () => {
+  // Each lane now streams its own real POST /inference/stream request
+  // (see web/src/lib/api.ts's streamInference) instead of a single
+  // client-side setTimeout loop computing one shared decode step time
+  // across all active lanes. Prefill queueing is preserved (lane N+1
+  // only starts once lane N's real ttft event arrives), but decode
+  // pacing is now per-lane (batch_size=1 server-side) rather than a true
+  // shared continuous-batching step — the tradeoff for every lane's
+  // prompt/tokens to actually reach the backend (and Langfuse tracing).
+  const runAll = async () => {
     if (!gpu || lanes.length === 0) return;
 
     const withTokens = lanes.map((l) => ({ ...l, promptTokens: estimateTokens(l.prompt) }));
@@ -89,7 +107,6 @@ export function MultiRequestPlayground({ model, gpu, precision }: { model: Model
     const myRun = runIdRef.current;
     overallStartRef.current = performance.now();
     firstTokenAtRef.current = 0;
-    totalGeneratedAtFirstTokenRef.current = 0;
     setMeasuredTokensPerSec(0);
 
     const reset = withTokens.map((l) => ({ ...l, status: "queued" as const, generated: 0, ttftMs: null }));
@@ -97,70 +114,72 @@ export function MultiRequestPlayground({ model, gpu, precision }: { model: Model
     setLanes(reset);
     setRunning(true);
 
-    const scheduleNextPrefill = (index: number) => {
-      if (runIdRef.current !== myRun) return;
-      if (index >= lanesRef.current.length) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const bumpAggregateRate = () => {
+      if (firstTokenAtRef.current === 0) firstTokenAtRef.current = performance.now();
+      const totalGenerated = lanesRef.current.reduce((s, l) => s + l.generated, 0);
+      const elapsed = (performance.now() - firstTokenAtRef.current) / 1000;
+      if (elapsed > 0) setMeasuredTokensPerSec(totalGenerated / elapsed);
+    };
+
+    const runLane = async (index: number): Promise<void> => {
+      if (runIdRef.current !== myRun || index >= lanesRef.current.length) return;
       const lane = lanesRef.current[index];
       lane.status = "prefilling";
       syncLanes();
-      const dur = prefillMs(model, gpu, precision, lane.promptTokens, 0.35, cacheHitPct / 100);
-      setTimeout(() => {
-        if (runIdRef.current !== myRun) return;
-        lane.status = "decoding";
-        lane.ttftMs = performance.now() - overallStartRef.current;
-        syncLanes();
-        ensureDecodeLoop();
-        scheduleNextPrefill(index + 1);
-      }, dur);
-    };
 
-    const ensureDecodeLoop = () => {
-      if (decodeLoopActiveRef.current) return;
-      decodeLoopActiveRef.current = true;
-      tick();
-    };
-
-    const tick = () => {
-      if (runIdRef.current !== myRun) {
-        decodeLoopActiveRef.current = false;
-        return;
-      }
-      const active = lanesRef.current.filter((l) => l.status === "decoding");
-      const stillPending = lanesRef.current.some((l) => l.status === "queued" || l.status === "prefilling");
-
-      if (active.length === 0) {
-        decodeLoopActiveRef.current = false;
-        if (!stillPending) {
+      let startedNext = false;
+      try {
+        for await (const evt of streamInference(
+          {
+            model,
+            model_label: modelLabel ?? "custom",
+            gpu_id: gpu.id,
+            precision,
+            prompt: lane.prompt,
+            prompt_tokens: lane.promptTokens,
+            max_output_tokens: lane.maxOutputTokens,
+            cache_hit_fraction: cacheHitPct / 100,
+            utilization: 0.35,
+          },
+          controller.signal,
+        )) {
+          if (runIdRef.current !== myRun) return;
+          if (evt.event === "ttft") {
+            lane.status = "decoding";
+            lane.ttftMs = performance.now() - overallStartRef.current;
+            syncLanes();
+            if (!startedNext) {
+              startedNext = true;
+              runLane(index + 1); // queue next lane's prefill once this one's ttft lands
+            }
+          } else if (evt.event === "token") {
+            lane.generated = (evt.data as { index: number }).index;
+            syncLanes();
+            bumpAggregateRate();
+          } else if (evt.event === "done") {
+            lane.status = "done";
+            syncLanes();
+          } else if (evt.event === "error") {
+            setOomError((evt.data as { detail: string }).detail);
+            lane.status = "done";
+            syncLanes();
+          }
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) setOomError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!startedNext) runLane(index + 1);
+        if (runIdRef.current === myRun && lanesRef.current.every((l) => l.status === "done")) {
           setRunning(false);
           forceRerender();
         }
-        return;
       }
-
-      if (firstTokenAtRef.current === 0) firstTokenAtRef.current = performance.now();
-
-      const avgKv = active.reduce((s, l) => s + l.promptTokens + l.generated, 0) / active.length;
-      const stepMs = decodeStepMs(model, gpu, precision, avgKv, active.length);
-
-      setTimeout(() => {
-        if (runIdRef.current !== myRun) {
-          decodeLoopActiveRef.current = false;
-          return;
-        }
-        for (const lane of active) {
-          if (lane.status !== "decoding") continue;
-          lane.generated += 1;
-          if (lane.generated >= lane.maxOutputTokens) lane.status = "done";
-        }
-        syncLanes();
-        const totalGenerated = lanesRef.current.reduce((s, l) => s + l.generated, 0);
-        const elapsed = (performance.now() - firstTokenAtRef.current) / 1000;
-        if (elapsed > 0) setMeasuredTokensPerSec(totalGenerated / elapsed);
-        tick();
-      }, stepMs);
     };
 
-    scheduleNextPrefill(0);
+    runLane(0);
   };
 
   const totalGenerated = lanes.reduce((s, l) => s + l.generated, 0);

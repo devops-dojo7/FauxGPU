@@ -5,13 +5,12 @@ import { GpuSpec, ModelShape } from "@/lib/types";
 import {
   checkVramFit,
   decodePowerWatts,
-  decodeStepMs,
   estimateTokens,
   kvCacheBytesPerToken,
-  prefillMs,
   prefillPowerWatts,
   DECODE_POWER_FRACTION,
 } from "@/lib/simEngine";
+import { streamInference } from "@/lib/api";
 import { formatGb } from "@/lib/format";
 import { Card, Field, NumberInput, Stat } from "./ui";
 import { Sparkline } from "./Sparkline";
@@ -22,7 +21,17 @@ const FILLER_WORDS =
 
 type Status = "idle" | "prefill" | "decoding" | "done";
 
-export function LiveInferencePlayground({ model, gpu, precision }: { model: ModelShape; gpu: GpuSpec | undefined; precision: string }) {
+export function LiveInferencePlayground({
+  model,
+  modelLabel,
+  gpu,
+  precision,
+}: {
+  model: ModelShape;
+  modelLabel?: string;
+  gpu: GpuSpec | undefined;
+  precision: string;
+}) {
   const [prompt, setPrompt] = useState("Explain how KV cache works in transformer inference.");
   const [maxOutputTokens, setMaxOutputTokens] = useState(80);
   const [cacheHitPct, setCacheHitPct] = useState(0);
@@ -37,23 +46,22 @@ export function LiveInferencePlayground({ model, gpu, precision }: { model: Mode
   const [powerSamples, setPowerSamples] = useState<number[]>([]);
   const [memBusySamples, setMemBusySamples] = useState<number[]>([]);
 
-  const runIdRef = useRef(0);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const firstTokenAtRef = useRef(0);
 
   const stop = () => {
-    runIdRef.current += 1;
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    abortRef.current?.abort();
+    abortRef.current = null;
     setStatus("idle");
   };
 
   useEffect(() => () => stop(), []); // cleanup on unmount
 
-  const run = () => {
+  const run = async () => {
     if (!gpu) return;
-    runIdRef.current += 1;
-    const myRunId = runIdRef.current;
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     const pTokens = estimateTokens(prompt);
 
@@ -70,40 +78,49 @@ export function LiveInferencePlayground({ model, gpu, precision }: { model: Mode
     setGeneratedTokens(0);
     setOutputWords([]);
     setMeasuredTokensPerSec(0);
+    setTtftMs(null);
     setStatus("prefill");
     setPowerSamples([prefillPowerWatts(gpu, 0.35)]);
     setMemBusySamples([30]);
 
-    const ttft = prefillMs(model, gpu, precision, pTokens, 0.35, cacheHitPct / 100);
-    setTtftMs(ttft);
-
-    timeoutRef.current = setTimeout(() => {
-      if (runIdRef.current !== myRunId) return;
-      setStatus("decoding");
-      firstTokenAtRef.current = performance.now();
-
-      const emitToken = (tokensSoFar: number) => {
-        if (runIdRef.current !== myRunId) return;
-        if (tokensSoFar >= maxOutputTokens) {
-          setStatus("done");
-          return;
-        }
-        const kvTokens = pTokens + tokensSoFar;
-        const stepMs = decodeStepMs(model, gpu, precision, kvTokens);
-        timeoutRef.current = setTimeout(() => {
-          if (runIdRef.current !== myRunId) return;
-          const next = tokensSoFar + 1;
+    try {
+      for await (const evt of streamInference(
+        {
+          model,
+          model_label: modelLabel ?? "custom",
+          gpu_id: gpu.id,
+          precision,
+          prompt,
+          prompt_tokens: pTokens,
+          max_output_tokens: maxOutputTokens,
+          cache_hit_fraction: cacheHitPct / 100,
+          utilization: 0.35,
+        },
+        controller.signal,
+      )) {
+        if (controller.signal.aborted) return;
+        if (evt.event === "ttft") {
+          setTtftMs((evt.data as { ttft_s: number }).ttft_s * 1000);
+          setStatus("decoding");
+          firstTokenAtRef.current = performance.now();
+        } else if (evt.event === "token") {
+          const next = (evt.data as { index: number }).index;
           setGeneratedTokens(next);
           setOutputWords((prev) => [...prev, FILLER_WORDS[(prev.length + pTokens) % FILLER_WORDS.length]]);
           const elapsedSinceFirst = (performance.now() - firstTokenAtRef.current) / 1000;
           if (elapsedSinceFirst > 0) setMeasuredTokensPerSec(next / elapsedSinceFirst);
           setPowerSamples((prev) => [...prev.slice(-59), decodePowerWatts(gpu)]);
           setMemBusySamples((prev) => [...prev.slice(-59), DECODE_POWER_FRACTION * 100 + 30]);
-          emitToken(next);
-        }, stepMs);
-      };
-      emitToken(0);
-    }, ttft);
+        } else if (evt.event === "done") {
+          setStatus("done");
+        } else if (evt.event === "error") {
+          setOomError((evt.data as { detail: string }).detail);
+          setStatus("idle");
+        }
+      }
+    } catch (err) {
+      if (!controller.signal.aborted) setOomError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const kvBytesPerToken = gpu ? kvCacheBytesPerToken(model, precision) : 0;

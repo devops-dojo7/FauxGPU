@@ -22,14 +22,22 @@ spec:
           env:
             - name: TRAINER_IMAGE
               value: {{ .Values.trainer.image }}
+            - name: INFERENCE_SERVER_IMAGE
+              value: {{ .Values.inferenceServer.image }}
             - name: SIMGPU_RESOURCE_NAME
               value: {{ include "simgpu.gpuResourceName" . | trim | quote }}
             - name: API_PORT
               value: {{ .Values.api.port | quote }}
-          {{- if .Values.grafana.enabled }}
+          {{- if or .Values.grafana.enabled .Values.langfuse.enabled }}
           envFrom:
+            {{- if .Values.grafana.enabled }}
             - secretRef:
                 name: simgpu-grafana
+            {{- end }}
+            {{- if .Values.langfuse.enabled }}
+            - secretRef:
+                name: simgpu-langfuse
+            {{- end }}
           {{- end }}
           ports:
             - containerPort: {{ .Values.api.port }}

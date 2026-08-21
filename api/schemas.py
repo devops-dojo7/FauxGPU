@@ -175,8 +175,30 @@ class SimulateRunRequest(BaseModel):
     utilization: float = 0.35
 
 
+class InferenceStreamRequest(BaseModel):
+    model: ModelShapeIn
+    model_label: str = "custom"
+    gpu_id: str
+    precision: str = "bf16"
+    prompt: str
+    prompt_tokens: int = Field(..., description="Pre-tokenized prompt length; playground computes this client-side")
+    max_output_tokens: int = 80
+    cache_hit_fraction: float = 0.0
+    utilization: float = 0.35
+
+
 class K8sAvailabilityResponse(BaseModel):
     available: bool
+
+
+class LaunchInferenceServerRequest(BaseModel):
+    model_preset: str = "llama2-7b"
+    gpu_id: str
+    precision: str = "bf16"
+
+
+class LaunchInferenceServerResponse(BaseModel):
+    name: str
 
 
 class LaunchK8sJobResponse(BaseModel):

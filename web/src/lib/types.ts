@@ -180,6 +180,18 @@ export interface SpeculativeDecodingResponse {
   speedup: number;
 }
 
+export interface InferenceStreamRequest {
+  model: ModelShape;
+  model_label: string;
+  gpu_id: string;
+  precision: string;
+  prompt: string;
+  prompt_tokens: number;
+  max_output_tokens: number;
+  cache_hit_fraction: number;
+  utilization: number;
+}
+
 export interface K8sAvailability {
   available: boolean;
 }

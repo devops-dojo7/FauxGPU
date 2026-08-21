@@ -4,9 +4,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from api import grafana_push
+from api import grafana_push, langfuse_client
 from api.metrics import render_prometheus_metrics
-from api.routers import calculate, gpus, runs, topology
+from api.routers import calculate, gpus, inference_stream, runs, topology
 from api.runs_store import store
 
 PUSH_INTERVAL_S = 2  # short enough that live runs visibly pulse between compute/comm phases on a dashboard
@@ -51,6 +51,7 @@ app.include_router(gpus.router)
 app.include_router(calculate.router)
 app.include_router(topology.router)
 app.include_router(runs.router)
+app.include_router(inference_stream.router)
 
 
 @app.get("/health")
@@ -72,3 +73,8 @@ def grafana_status():
 def grafana_push_now():
     samples_sent = grafana_push.push_run_metrics()
     return {"samples_sent": samples_sent}
+
+
+@app.get("/langfuse/status")
+def langfuse_status():
+    return {"tracing_available": langfuse_client.tracing_available()}

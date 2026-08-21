@@ -306,8 +306,18 @@ export default function Home() {
               decodeBatchSize={inferenceInputs.decodeBatchSize}
               cacheHitFraction={inferenceInputs.cacheHitPct / 100}
             />
-            <LiveInferencePlayground model={modelState.model} gpu={gpu} precision={inferenceInputs.precision} />
-            <MultiRequestPlayground model={modelState.model} gpu={gpu} precision={inferenceInputs.precision} />
+            <LiveInferencePlayground
+              model={modelState.model}
+              modelLabel={modelState.presetId}
+              gpu={gpu}
+              precision={inferenceInputs.precision}
+            />
+            <MultiRequestPlayground
+              model={modelState.model}
+              modelLabel={modelState.presetId}
+              gpu={gpu}
+              precision={inferenceInputs.precision}
+            />
             <SpeculativeDecodingPanel targetModel={modelState.model} gpu={gpu} precision={inferenceInputs.precision} />
           </div>
         )}

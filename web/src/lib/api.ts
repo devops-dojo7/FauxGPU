@@ -5,6 +5,7 @@ import type {
   GpuSpec,
   InferenceRequest,
   InferenceResponse,
+  InferenceStreamRequest,
   K8sAvailability,
   LaunchK8sJobResponse,
   RunDetail,
@@ -37,6 +38,56 @@ async function get<TRes>(path: string): Promise<TRes> {
   const res = await fetch(`${API_URL}${path}`);
   if (!res.ok) throw new Error(`Request to ${path} failed (${res.status})`);
   return res.json();
+}
+
+export interface SSEEvent {
+  event: string;
+  data: unknown;
+}
+
+/** POST /inference/stream is Server-Sent Events, but native EventSource is
+ * GET-only — reads the response body's ReadableStream by hand instead,
+ * yielding one parsed { event, data } per "event:\ndata:\n\n" block. Stops
+ * when the stream ends or `signal` aborts. */
+export async function* streamInference(req: InferenceStreamRequest, signal?: AbortSignal): AsyncGenerator<SSEEvent> {
+  const res = await fetch(`${API_URL}/inference/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+    signal,
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(`Request to /inference/stream failed (${res.status})`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    // sse-starlette (and the SSE spec generally) terminates lines with
+    // \r\n and blocks with a blank line — normalize to \n on the
+    // accumulated buffer (not per-chunk, in case a \r\n pair straddles
+    // a chunk boundary) so both \n\n and \r\n\r\n separators are found.
+    buffer = buffer.replace(/\r\n/g, "\n");
+
+    let sepIndex: number;
+    while ((sepIndex = buffer.indexOf("\n\n")) !== -1) {
+      const block = buffer.slice(0, sepIndex);
+      buffer = buffer.slice(sepIndex + 2);
+
+      let eventName = "message";
+      let dataLine = "";
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataLine += line.slice(5).trim();
+      }
+      if (dataLine) yield { event: eventName, data: JSON.parse(dataLine) };
+    }
+  }
 }
 
 export const fetchGpus = () => get<GpuSpec[]>("/gpus");
