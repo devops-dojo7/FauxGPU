@@ -93,6 +93,19 @@
   .trust-line code { color: var(--text-dim); background: var(--code-bg); padding: 2px 7px; border-radius: 5px; border: 1px solid var(--border); }
 
   section { padding: 64px 0; border-top: 1px solid var(--border); }
+
+  /* Demo screenshot */
+  .demo-frame {
+    border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+    background: var(--bg-panel); box-shadow: 0 30px 80px -20px rgba(0,0,0,0.6);
+  }
+  .demo-chrome { display: flex; gap: 6px; padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--bg-panel-2); }
+  .demo-chrome span { width: 10px; height: 10px; border-radius: 50%; background: #333c4a; }
+  .demo-frame img { display: block; width: 100%; height: auto; }
+  .demo-caption { text-align: center; color: var(--text-faint); font-size: 13.5px; margin: 16px 0 0; }
+
+  .diagram-frame { text-align: center; }
+  .diagram-frame img { max-width: 100%; height: auto; border-radius: var(--radius); border: 1px solid var(--border); }
   .kicker { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--blue); margin: 0 0 12px; }
   h2 { font-size: 30px; margin: 0 0 18px; letter-spacing: -0.01em; }
   .lead { font-size: 16.5px; color: var(--text-dim); max-width: 74ch; margin: 0 0 36px; }
@@ -116,17 +129,6 @@
   .uc h4 { margin: 0 0 4px; font-size: 15px; }
   .uc p { margin: 0; font-size: 14px; color: var(--text-dim); }
 
-  /* How it works */
-  .pipeline {
-    background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 28px 26px; font-size: 13.5px; overflow-x: auto;
-  }
-  .pipeline .row { display: flex; align-items: center; gap: 14px; padding: 10px 0; }
-  .pipeline .tag {
-    flex: none; width: 78px; font-weight: 700; color: var(--green);
-  }
-  .pipeline .desc { color: var(--text-dim); }
-  .pipeline .arrow { color: var(--text-faint); padding-left: 39px; }
 
   /* Observability */
   .obs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -208,6 +210,16 @@
   </div>
 </header>
 
+<section id="demo" style="border-top:none; padding-top:0;">
+  <div class="wrap">
+    <div class="demo-frame">
+      <div class="demo-chrome"><span></span><span></span><span></span></div>
+      <img src="demo-screenshot.jpg" alt="ErsatzGPU Training tab showing a DeepSeek-V3 671B VRAM breakdown that doesn't fit on a single H200, with real cost and step-time numbers" loading="lazy">
+    </div>
+    <p class="demo-caption">Real formulas, not a mockup — DeepSeek-V3 671B genuinely doesn't fit on one H200 in bf16, and the site tells you so.</p>
+  </div>
+</section>
+
 <section id="why">
   <div class="wrap">
     <p class="kicker">Why this project</p>
@@ -280,14 +292,8 @@
     <p class="lead"><code class="mono">engine/</code> has zero web or Kubernetes dependencies — it's the single
       source of truth the API, the K3s trainer Job, and the real inference server all call into, so the website's
       numbers and a real scheduled pod's simulated behavior never drift apart.</p>
-    <div class="pipeline">
-      <div class="row"><span class="tag mono">engine/</span><span class="desc">pure-Python VRAM / KV-cache / topology / cost / inference formulas</span></div>
-      <div class="arrow">│</div>
-      <div class="row"><span class="tag mono">api/</span><span class="desc">FastAPI service — wraps engine/, streams inference over SSE, optional Grafana/Langfuse push, launches real k8s Jobs</span></div>
-      <div class="arrow">│</div>
-      <div class="row"><span class="tag mono">web/</span><span class="desc">Next.js site — model/GPU pickers, live training panel, prompt playgrounds, GPU-monitoring sparklines</span></div>
-      <div class="arrow">│</div>
-      <div class="row"><span class="tag mono">k3s/</span><span class="desc">fake-GPU K8s layer — device-plugin or fake-gpu-operator backend, Helm chart, sample trainer Job, real inference server</span></div>
+    <div class="diagram-frame">
+      <img src="architecture-diagram.png" alt="Diagram: engine/ (pure-Python VRAM / KV-cache / topology / cost / inference formulas) feeds api/ (FastAPI service — wraps engine/, streams inference over SSE, optional Grafana/Langfuse push, launches real k8s Jobs), which feeds web/ (Next.js site — model/GPU pickers, live training panel, prompt playgrounds, GPU-monitoring sparklines), which feeds k3s/ (fake-GPU K8s layer — device-plugin or fake-gpu-operator backend, Helm chart, sample trainer Job, real inference server)" loading="lazy">
     </div>
   </div>
 </section>
