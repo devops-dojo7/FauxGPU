@@ -1,0 +1,31 @@
+{{- if .Values.fleet.enabled }}
+{{- if ne .Values.gpuBackend "fake-gpu-operator" }}
+{{- fail "fleet.enabled requires gpuBackend: fake-gpu-operator (KWOK nodes are only scheduled by fake-gpu-operator's kwok-gpu-device-plugin)" }}
+{{- end }}
+{{- range $i := until (int .Values.fleet.numNodes) }}
+apiVersion: v1
+kind: Node
+metadata:
+  name: simgpu-fleet-node-{{ $i }}
+  annotations:
+    kwok.x-k8s.io/node: fake
+  labels:
+    type: kwok
+    {{ $.Values.fakeGpuOperator.nodePoolLabelKey }}: {{ $.Values.fakeGpuOperator.nodePool }}
+spec:
+  taints:
+    - effect: NoSchedule
+      key: kwok.x-k8s.io/node
+      value: fake
+status:
+  allocatable:
+    cpu: {{ $.Values.fleet.nodeCpu | quote }}
+    memory: {{ $.Values.fleet.nodeMemory | quote }}
+    pods: "110"
+  capacity:
+    cpu: {{ $.Values.fleet.nodeCpu | quote }}
+    memory: {{ $.Values.fleet.nodeMemory | quote }}
+    pods: "110"
+---
+{{- end }}
+{{- end }}

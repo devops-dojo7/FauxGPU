@@ -85,8 +85,17 @@ All phases are built and verified:
   annotations for both an in-process simulated run and the real
   Helm-deployed trainer Job landed and were queried back successfully, and
   a manual push sent 4 real samples into the Prometheus/Mimir datasource.
+- **Phase 10 (in progress):** mock-datacenter platform expansion — an opt-in
+  `gpuBackend: fake-gpu-operator` mode (see "Datacenter mode" below) targeting
+  [run-ai/fake-gpu-operator](https://github.com/run-ai/fake-gpu-operator) for
+  MIG/DRA and a 100+ node KWOK-simulated fleet, plus (planned) a full
+  Grafana+Prometheus+Langfuse observability stack, real per-request inference
+  tracing, and a reusable CI/CD template for testing against the mock
+  cluster. See `/home/kumail/.claude/plans/transient-swimming-heron.md` for
+  the full phased plan.
 
-See `/home/kumail/.claude/plans/calm-fluttering-teapot.md` for the full plan.
+See `/home/kumail/.claude/plans/calm-fluttering-teapot.md` for the plan
+covering phases 1-9.
 
 ## Layout
 
@@ -184,6 +193,70 @@ Change `values.yaml` (`trainer.topologyShape`, `trainer.gpuModel`,
 step time and communication overhead change with the simulated topology.
 
 Tear down with `k3d cluster delete simgpu`.
+
+## Datacenter mode: fake-gpu-operator
+
+The default `gpuBackend: simgpu` above is a minimal fake device-plugin —
+enough to demonstrate real k8s GPU-resource scheduling, but only a single
+static GPU model/count per node. For a richer "how does a real GPU
+datacenter operate" experience — MIG partitioning, Dynamic Resource
+Allocation (DRA, k8s 1.31+), and its own Prometheus GPU-utilization
+metrics — this project can instead target
+[run-ai/fake-gpu-operator](https://github.com/run-ai/fake-gpu-operator)
+(Apache 2.0), installed as a prerequisite:
+
+```bash
+# install fake-gpu-operator itself (a separate Helm release, its own namespace)
+helm install fake-gpu-operator oci://ghcr.io/run-ai/fake-gpu-operator \
+  --namespace fake-gpu-operator --create-namespace \
+  --set topology.nodePools.default.gpuProduct=H100-SXM5-80GB \
+  --set topology.nodePools.default.gpuCount=8 \
+  --set topology.nodePools.default.gpuMemory=81920
+
+# label the nodes it should treat as GPU nodes (matches the pool above)
+kubectl label node k3d-simgpu-agent-0 run.ai/simulated-gpu-node-pool=default
+kubectl label node k3d-simgpu-agent-1 run.ai/simulated-gpu-node-pool=default
+
+# point this chart at it instead of the built-in device-plugin
+helm upgrade simgpu k3s/helm/simgpu --set gpuBackend=fake-gpu-operator
+```
+
+When `gpuBackend: fake-gpu-operator`, this chart stops deploying its own
+device-plugin DaemonSet and instead requests
+`fakeGpuOperator.resourceName` (default `nvidia.com/gpu`, matching
+fake-gpu-operator's mock-NVML DaemonSet) on the API and trainer pods —
+`fakeGpuOperator.nodePoolLabelKey`/`nodePool` must match whatever pool you
+configured in fake-gpu-operator's own `topology.nodePools` values above.
+
+### Optional: 100+ node simulated fleet (KWOK)
+
+fake-gpu-operator can register hundreds of fake `Node` objects backed by
+[KWOK](https://kwok.sigs.k8s.io/) (no real kubelet) — enough to make
+`kubectl get nodes` and fleet-wide Grafana panels feel like a real
+hyperscaler-sized cluster. This is for experiencing scheduling/topology at
+scale, not for running real trainer/inference Jobs across all of them —
+KWOK nodes can't run real pods, so this project's own workloads still only
+ever land on the small real node pool from the section above.
+
+```bash
+# install the KWOK controller (once per cluster)
+KWOK_VERSION=v0.7.0
+kubectl apply -f "https://github.com/kubernetes-sigs/kwok/releases/download/${KWOK_VERSION}/kwok.yaml"
+kubectl apply -f "https://github.com/kubernetes-sigs/kwok/releases/download/${KWOK_VERSION}/stage-fast.yaml"
+
+# enable fake-gpu-operator's KWOK device plugin
+helm upgrade fake-gpu-operator oci://ghcr.io/run-ai/fake-gpu-operator \
+  --namespace fake-gpu-operator --reuse-values \
+  --set kwokGpuDevicePlugin.enabled=true
+
+# render 100 fake GPU nodes
+helm upgrade simgpu k3s/helm/simgpu \
+  --set gpuBackend=fake-gpu-operator \
+  --set fleet.enabled=true \
+  --set fleet.numNodes=100
+
+kubectl get nodes -l type=kwok
+```
 
 ## Optional: Grafana Cloud integration
 

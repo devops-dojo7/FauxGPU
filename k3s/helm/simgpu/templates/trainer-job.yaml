@@ -46,5 +46,5 @@ spec:
                   fieldPath: metadata.name
           resources:
             limits:
-              {{ .Values.devicePlugin.resourceName }}: {{ .Values.trainer.gpusRequested | quote }}
+              {{ include "simgpu.gpuResourceName" . | trim }}: {{ .Values.trainer.gpusRequested | quote }}
 {{- end }}

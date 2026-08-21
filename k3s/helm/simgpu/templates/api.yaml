@@ -23,7 +23,7 @@ spec:
             - name: TRAINER_IMAGE
               value: {{ .Values.trainer.image }}
             - name: SIMGPU_RESOURCE_NAME
-              value: {{ .Values.devicePlugin.resourceName | quote }}
+              value: {{ include "simgpu.gpuResourceName" . | trim | quote }}
             - name: API_PORT
               value: {{ .Values.api.port | quote }}
           {{- if .Values.grafana.enabled }}

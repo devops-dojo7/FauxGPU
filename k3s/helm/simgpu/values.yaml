@@ -1,9 +1,39 @@
+# Which fake-GPU backend the cluster runs. "simgpu" is the lightweight
+# built-in device-plugin below (default, matches the k3d quickstart).
+# "fake-gpu-operator" targets github.com/run-ai/fake-gpu-operator, installed
+# separately as a prerequisite (see README "Datacenter mode"); it must
+# already be running in-cluster before you set this.
+gpuBackend: simgpu
+
 devicePlugin:
   image: simgpu/device-plugin:dev
   imagePullPolicy: IfNotPresent
   resourceName: simgpu.dev/gpu
   gpuModel: h100-sxm
   gpuCount: 8
+
+# Only used when gpuBackend: fake-gpu-operator. resourceName must match
+# whatever fake-gpu-operator's mock-NVML DaemonSet advertises in your
+# cluster (its default is nvidia.com/gpu). nodePoolLabelKey/nodePool must
+# match a pool defined under fake-gpu-operator's own `topology.nodePools`
+# Helm values (set at *its* install time, not here) — see README
+# "Datacenter mode" for the exact prerequisite install command.
+fakeGpuOperator:
+  resourceName: nvidia.com/gpu
+  nodePoolLabelKey: run.ai/simulated-gpu-node-pool
+  nodePool: default
+
+# Opt-in large simulated fleet: renders plain KWOK-annotated Node objects
+# (no real kubelet backs them) so `kubectl get nodes` shows datacenter
+# scale. Requires gpuBackend: fake-gpu-operator, its kwok-gpu-device-plugin
+# enabled, and the KWOK controller already installed in-cluster (see
+# README). These nodes cannot run real pods — trainer/inference Jobs still
+# only schedule onto the real node pool.
+fleet:
+  enabled: false
+  numNodes: 100
+  nodeCpu: "32"
+  nodeMemory: 128Gi
 
 api:
   image: simgpu/api:dev

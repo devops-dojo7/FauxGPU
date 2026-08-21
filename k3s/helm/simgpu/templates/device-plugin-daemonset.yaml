@@ -1,3 +1,4 @@
+{{- if eq .Values.gpuBackend "simgpu" }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -34,3 +35,4 @@ spec:
         - name: device-plugins
           hostPath:
             path: /var/lib/kubelet/device-plugins
+{{- end }}
