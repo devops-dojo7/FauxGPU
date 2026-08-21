@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ErsatzGPU — Learn how a real GPU datacenter works, with zero GPUs</title>
+<meta name="description" content="Simulate GPU training, inference, Kubernetes scheduling, and the observability stack of a frontier-lab GPU datacenter, with zero real GPUs required.">
+<link rel="icon" href="logo.png">
+<meta property="og:title" content="ErsatzGPU">
+<meta property="og:description" content="Learn how a real GPU datacenter actually works, with zero GPUs.">
+<meta property="og:image" content="https://devops-dojo7.github.io/ErsatzGPU/logo.png">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg-panel: #10151f;
+    --bg-panel-2: #141a26;
+    --border: #212938;
+    --text: #e6ebf2;
+    --text-dim: #98a4b8;
+    --text-faint: #5d6b82;
+    --blue: #3b9eff;
+    --green: #34d399;
+    --accent-grad: linear-gradient(90deg, var(--blue), var(--green));
+    --code-bg: #0d1219;
+    --radius: 14px;
+    --max-w: 1120px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  code, pre, .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .wrap { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
+
+  /* Nav */
+  nav.top {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(10,14,20,0.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.top .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; color: var(--text); }
+  .brand img { height: 28px; width: 28px; object-fit: contain; }
+  nav.top .links { display: flex; align-items: center; gap: 26px; font-size: 14px; }
+  nav.top .links a { color: var(--text-dim); }
+  nav.top .links a:hover { color: var(--text); text-decoration: none; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 18px; border-radius: 999px; font-size: 14px; font-weight: 600;
+    border: 1px solid var(--border);
+  }
+  .btn:hover { text-decoration: none; }
+  .btn-primary { background: var(--accent-grad); color: #06121a; border: none; }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-ghost { color: var(--text); background: var(--bg-panel); }
+  .btn-ghost:hover { background: var(--bg-panel-2); }
+
+  /* Hero */
+  header.hero { padding: 96px 0 72px; position: relative; overflow: hidden; }
+  header.hero::before {
+    content: ""; position: absolute; inset: -20% -10% auto -10%; height: 520px;
+    background: radial-gradient(60% 60% at 30% 20%, rgba(59,158,255,0.16), transparent 70%),
+                radial-gradient(50% 50% at 80% 10%, rgba(52,211,153,0.14), transparent 70%);
+    pointer-events: none;
+  }
+  .hero-inner { position: relative; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 48px; align-items: center; }
+  @media (max-width: 860px) { .hero-inner { grid-template-columns: 1fr; } .hero-art { order: -1; } }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--green); background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.25);
+    padding: 6px 12px; border-radius: 999px; margin-bottom: 22px;
+  }
+  h1.headline { font-size: 48px; line-height: 1.12; margin: 0 0 20px; letter-spacing: -0.02em; }
+  h1.headline .grad { background: var(--accent-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { font-size: 18px; color: var(--text-dim); max-width: 56ch; margin: 0 0 32px; }
+  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 28px; }
+  .hero-art { display: flex; justify-content: center; align-items: center; }
+  .hero-art img { width: 100%; max-width: 340px; filter: drop-shadow(0 20px 60px rgba(59,158,255,0.25)); }
+  .trust-line { font-size: 13px; color: var(--text-faint); }
+  .trust-line code { color: var(--text-dim); background: var(--code-bg); padding: 2px 7px; border-radius: 5px; border: 1px solid var(--border); }
+
+  section { padding: 64px 0; border-top: 1px solid var(--border); }
+  .kicker { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--blue); margin: 0 0 12px; }
+  h2 { font-size: 30px; margin: 0 0 18px; letter-spacing: -0.01em; }
+  .lead { font-size: 16.5px; color: var(--text-dim); max-width: 74ch; margin: 0 0 36px; }
+
+  /* Why */
+  .why-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 780px) { .why-grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 24px;
+  }
+  .card h3 { font-size: 16px; margin: 0 0 8px; }
+  .card p { font-size: 14.5px; color: var(--text-dim); margin: 0; }
+  .card .icon { font-size: 22px; margin-bottom: 12px; display: block; }
+
+  /* Use cases */
+  .uc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  @media (max-width: 780px) { .uc-grid { grid-template-columns: 1fr; } }
+  .uc { display: flex; gap: 14px; padding: 18px 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-panel); }
+  .uc .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; margin-top: 8px; background: var(--accent-grad); }
+  .uc h4 { margin: 0 0 4px; font-size: 15px; }
+  .uc p { margin: 0; font-size: 14px; color: var(--text-dim); }
+
+  /* How it works */
+  .pipeline {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 28px 26px; font-size: 13.5px; overflow-x: auto;
+  }
+  .pipeline .row { display: flex; align-items: center; gap: 14px; padding: 10px 0; }
+  .pipeline .tag {
+    flex: none; width: 78px; font-weight: 700; color: var(--green);
+  }
+  .pipeline .desc { color: var(--text-dim); }
+  .pipeline .arrow { color: var(--text-faint); padding-left: 39px; }
+
+  /* Observability */
+  .obs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 780px) { .obs-grid { grid-template-columns: 1fr; } }
+  .obs-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; background: var(--bg-panel); }
+  .obs-card h3 { margin: 0 0 10px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .obs-card ul { margin: 0; padding-left: 20px; color: var(--text-dim); font-size: 14.5px; }
+  .obs-card li { margin-bottom: 6px; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .pill { font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--code-bg); border: 1px solid var(--border); color: var(--text-dim); }
+
+  /* Ecosystem */
+  table.eco { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.eco th, table.eco td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  table.eco th { color: var(--text-faint); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+  table.eco td:first-child { font-weight: 600; white-space: nowrap; }
+  table.eco td { color: var(--text-dim); }
+  table.eco tr:last-child td { border-bottom: none; }
+  .eco-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-panel); }
+  .eco-scroll table.eco { min-width: 640px; }
+  .eco-scroll th, .eco-scroll td { padding: 14px 18px; }
+
+  /* Roadmap */
+  .road-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 780px) { .road-grid { grid-template-columns: 1fr; } }
+  .road-col h3 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); margin: 0 0 14px; }
+  .road-item { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; font-size: 14.5px; color: var(--text-dim); border-bottom: 1px dashed var(--border); }
+  .road-item:last-child { border-bottom: none; }
+  .road-item .check { color: var(--green); flex: none; }
+  .road-item .arrow { color: var(--blue); flex: none; }
+
+  /* CTA footer */
+  .cta-band {
+    border-top: 1px solid var(--border); text-align: center; padding: 80px 0;
+    background: radial-gradient(60% 100% at 50% 0%, rgba(59,158,255,0.08), transparent 70%);
+  }
+  .cta-band h2 { margin-bottom: 12px; }
+  .cta-band p { color: var(--text-dim); margin: 0 0 30px; }
+
+  footer { border-top: 1px solid var(--border); padding: 32px 0; }
+  footer .wrap { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--text-faint); }
+  footer a { color: var(--text-dim); }
+  footer .flinks { display: flex; gap: 18px; }
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="wrap">
+    <div class="brand"><img src="logo.png" alt=""> ErsatzGPU</div>
+    <div class="links">
+      <a href="#why">Why</a>
+      <a href="#how">How it works</a>
+      <a href="#observability">Observability</a>
+      <a href="#ecosystem">Ecosystem</a>
+      <a href="#roadmap">Roadmap</a>
+      <a class="btn btn-ghost" href="https://github.com/devops-dojo7/ErsatzGPU" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-inner">
+    <div>
+      <span class="eyebrow">● Open source · MIT licensed</span>
+      <h1 class="headline">Learn how a real GPU<br><span class="grad">datacenter</span> actually works.<br>With zero GPUs.</h1>
+      <p class="sub">ErsatzGPU simulates the math, the Kubernetes scheduling, and the observability stack of a
+        frontier-lab-scale GPU cluster — VRAM, KV cache, topology, MIG, a 100+ node fleet, Grafana, Prometheus,
+        Langfuse — so you can learn distributed training and inference internals on a laptop.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://github.com/devops-dojo7/ErsatzGPU" target="_blank" rel="noopener">View on GitHub →</a>
+        <a class="btn btn-ghost" href="https://github.com/devops-dojo7/ErsatzGPU#quick-start" target="_blank" rel="noopener">Quick start</a>
+      </div>
+      <p class="trust-line">Every number comes from real formulas, not lookup tables — run <code>.venv/bin/pytest tests/ -v</code> and see for yourself.</p>
+    </div>
+    <div class="hero-art">
+      <img src="logo.png" alt="ErsatzGPU logo — a stylized GPU card">
+    </div>
+  </div>
+</header>
+
+<section id="why">
+  <div class="wrap">
+    <p class="kicker">Why this project</p>
+    <h2>GPU scarcity is the biggest barrier to actually learning this stuff.</h2>
+    <p class="lead">You can read papers about NVLink topology, KV-cache growth, or disaggregated prefill/decode
+      serving — but without real GPUs you can't <em>feel</em> any of it. ErsatzGPU closes that gap: every number is
+      computed from the same formulas that govern real hardware, the K8s layer schedules real pods against real
+      (fake) GPU resources, and the observability stack is a real Grafana/Prometheus/Langfuse deployment. Only the
+      GPUs themselves are ersatz.</p>
+    <div class="why-grid">
+      <div class="card">
+        <span class="icon">🧮</span>
+        <h3>Real formulas, not lookups</h3>
+        <p>VRAM breakdown, KV cache, cost, and power all respond correctly to input changes — bigger model,
+          different GPU, more nodes — the same way real hardware would.</p>
+      </div>
+      <div class="card">
+        <span class="icon">☸️</span>
+        <h3>Real Kubernetes scheduling</h3>
+        <p>Pods actually get scheduled against fake GPU resources — device-plugins, MIG partitioning, a
+          100+ node KWOK-simulated fleet — not a mockup.</p>
+      </div>
+      <div class="card">
+        <span class="icon">📈</span>
+        <h3>Real observability</h3>
+        <p>A genuine Grafana + Prometheus + Langfuse deployment, fed by simulated workloads — practice
+          dashboards and LLM tracing without a live training job.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="use-cases">
+  <div class="wrap">
+    <p class="kicker">Use case</p>
+    <h2>What people actually use it for</h2>
+    <div class="uc-grid">
+      <div class="uc"><span class="dot"></span><div>
+        <h4>Learning GPU internals</h4>
+        <p>VRAM breakdown, architecture variants (GQA, MoE, MLA), NVLink/InfiniBand topology, training cost and power — all interactive, in a browser.</p>
+      </div></div>
+      <div class="uc"><span class="dot"></span><div>
+        <h4>Learning inference serving</h4>
+        <p>Prefill vs. decode, prefix-cache routing, vLLM PagedAttention, speculative decoding, and llm-d-style disaggregated serving tradeoffs.</p>
+      </div></div>
+      <div class="uc"><span class="dot"></span><div>
+        <h4>Practicing K8s GPU scheduling</h4>
+        <p>Watch pods get scheduled against fake GPU resources — including MIG partitioning and a 100+ node simulated fleet — without hardware.</p>
+      </div></div>
+      <div class="uc"><span class="dot"></span><div>
+        <h4>Prototyping observability</h4>
+        <p>A real Grafana + Prometheus + Langfuse stack fed by simulated GPU workloads, for practicing dashboards or LLM tracing on demand.</p>
+      </div></div>
+      <div class="uc"><span class="dot"></span><div>
+        <h4>CI/CD for GPU workloads</h4>
+        <p>A reusable GitHub Actions workflow that deploys the whole stack to a real k3d cluster and asserts GPU scheduling actually works.</p>
+      </div></div>
+      <div class="uc"><span class="dot"></span><div>
+        <h4>Teaching and demos</h4>
+        <p>No hardware bill, no cloud GPU quota request — spin up a full mock datacenter on a laptop for a class or a talk.</p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <p class="kicker">How it works</p>
+    <h2>One set of formulas, four layers deep</h2>
+    <p class="lead"><code class="mono">engine/</code> has zero web or Kubernetes dependencies — it's the single
+      source of truth the API, the K3s trainer Job, and the real inference server all call into, so the website's
+      numbers and a real scheduled pod's simulated behavior never drift apart.</p>
+    <div class="pipeline">
+      <div class="row"><span class="tag mono">engine/</span><span class="desc">pure-Python VRAM / KV-cache / topology / cost / inference formulas</span></div>
+      <div class="arrow">│</div>
+      <div class="row"><span class="tag mono">api/</span><span class="desc">FastAPI service — wraps engine/, streams inference over SSE, optional Grafana/Langfuse push, launches real k8s Jobs</span></div>
+      <div class="arrow">│</div>
+      <div class="row"><span class="tag mono">web/</span><span class="desc">Next.js site — model/GPU pickers, live training panel, prompt playgrounds, GPU-monitoring sparklines</span></div>
+      <div class="arrow">│</div>
+      <div class="row"><span class="tag mono">k3s/</span><span class="desc">fake-GPU K8s layer — device-plugin or fake-gpu-operator backend, Helm chart, sample trainer Job, real inference server</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="observability">
+  <div class="wrap">
+    <p class="kicker">Observability and WebUI</p>
+    <h2>A real stack, not a screenshot</h2>
+    <p class="lead">Runnable via docker-compose (no cluster needed) or in-cluster, layered on
+      <code class="mono">kube-prometheus-stack</code> and Langfuse's official Helm chart rather than reimplementing
+      either.</p>
+    <div class="obs-grid">
+      <div class="obs-card">
+        <h3>🖥️ WebUI</h3>
+        <ul>
+          <li><strong>Training tab</strong> — model/GPU pickers, VRAM breakdown, topology diagram, cost calculator, a live training panel</li>
+          <li><strong>Inference tab</strong> — prefill/decode explainer, colocated-vs-disaggregated throughput, a live streaming prompt playground</li>
+          <li>Live sparkline charts for power draw, SM utilization, and memory-bus-busy %</li>
+        </ul>
+      </div>
+      <div class="obs-card">
+        <h3>📊 Observability stack</h3>
+        <ul>
+          <li>Grafana pre-provisioned with the project's own dashboard <em>and</em> the vendored community NVIDIA DCGM dashboard</li>
+          <li>Prometheus scraping real <code class="mono">DCGM_FI_*</code>-shaped metrics</li>
+          <li>Langfuse tracing prefill/decode spans for every playground request and real workloads against the mock cluster</li>
+        </ul>
+        <div class="pill-row">
+          <span class="pill">docker compose --profile observability up</span>
+          <span class="pill">docker compose --profile langfuse up</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="ecosystem">
+  <div class="wrap">
+    <p class="kicker">Ecosystem integrations</p>
+    <h2>What each dependency actually unlocks</h2>
+    <div class="eco-scroll">
+      <table class="eco">
+        <tr><th>Project</th><th>What it enables</th></tr>
+        <tr><td>llm-d</td><td>The disaggregated prefill/decode serving model the Inference tab is built on</td></tr>
+        <tr><td>fake-gpu-operator</td><td>Opt-in richer GPU backend — MIG, DRA, its own Prometheus metrics, KWOK-simulated fleets</td></tr>
+        <tr><td>KWOK</td><td>Backs the 100+ node simulated fleet with no real kubelet required</td></tr>
+        <tr><td>Prometheus</td><td>Scrapes the real exposition-format metrics, including DCGM series</td></tr>
+        <tr><td>Grafana</td><td>Pre-provisioned dashboards, locally or via kube-prometheus-stack's sidecar</td></tr>
+        <tr><td>Langfuse</td><td>Per-request LLM tracing for simulated and real workloads against the mock cluster</td></tr>
+        <tr><td>Kubernetes / Helm</td><td>The whole k3s/ layer — device-plugin, trainer, inference-server, and the simgpu chart</td></tr>
+        <tr><td>GitHub Actions</td><td>A reusable e2e workflow other repos can call directly against a real k3d-deployed mock cluster</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="roadmap">
+  <div class="wrap">
+    <p class="kicker">Roadmap</p>
+    <h2>Built, and what's ahead</h2>
+    <div class="road-grid">
+      <div class="road-col">
+        <h3>Shipped</h3>
+        <div class="road-item"><span class="check">✓</span>Calculation engine + FastAPI service</div>
+        <div class="road-item"><span class="check">✓</span>Next.js site with Training / Inference tabs</div>
+        <div class="road-item"><span class="check">✓</span>K3s fake-GPU device-plugin layer + Helm chart</div>
+        <div class="road-item"><span class="check">✓</span>llm-d-style disaggregated inference simulator</div>
+        <div class="road-item"><span class="check">✓</span>Architecture-aware formulas (GQA / MoE / MLA)</div>
+        <div class="road-item"><span class="check">✓</span>Tensor/pipeline parallelism + power modeling</div>
+        <div class="road-item"><span class="check">✓</span>Speculative decoding + Prometheus metrics bridge</div>
+        <div class="road-item"><span class="check">✓</span>fake-gpu-operator backend + KWOK-simulated fleet</div>
+        <div class="road-item"><span class="check">✓</span>Grafana + Prometheus + Langfuse observability stack</div>
+        <div class="road-item"><span class="check">✓</span>Real per-request inference streaming and tracing</div>
+        <div class="road-item"><span class="check">✓</span>Reusable CI/CD e2e workflow</div>
+      </div>
+      <div class="road-col">
+        <h3>Ahead</h3>
+        <div class="road-item"><span class="arrow">→</span>Broader accelerator-vendor coverage in the topology model</div>
+        <div class="road-item"><span class="arrow">→</span>Deeper MIG-aware capacity planning</div>
+        <div class="road-item"><span class="arrow">→</span>Expanding the CI template library beyond the single reusable e2e workflow</div>
+      </div>
+    </div>
+    <p style="margin-top:28px; font-size:14.5px; color:var(--text-dim);">
+      Live status board: <a href="https://github.com/orgs/devops-dojo7/projects/1" target="_blank" rel="noopener">ErsatzGPU Roadmap</a> ·
+      Contributions welcome — see <a href="https://github.com/devops-dojo7/ErsatzGPU/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">CONTRIBUTING.md</a>
+    </p>
+  </div>
+</section>
+
+<div class="cta-band">
+  <div class="wrap">
+    <h2>Spin up a mock datacenter in one command.</h2>
+    <p>No GPU, no cloud bill, no waiting on quota approval.</p>
+    <div class="cta-row" style="justify-content:center;">
+      <a class="btn btn-primary" href="https://github.com/devops-dojo7/ErsatzGPU" target="_blank" rel="noopener">Get started on GitHub →</a>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 ErsatzGPU · MIT License</span>
+    <div class="flinks">
+      <a href="https://github.com/devops-dojo7/ErsatzGPU" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/devops-dojo7/ErsatzGPU/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+      <a href="https://github.com/orgs/devops-dojo7/projects/1" target="_blank" rel="noopener">Roadmap</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
