@@ -79,6 +79,26 @@ drift apart.
 
 ### Quick start
 
+The fastest way to run everything — simulator, observability stack, and
+Langfuse tracing — is docker compose:
+
+```bash
+docker compose up                                             # simulator only: api, web
+docker compose --profile observability up                     # + prometheus, grafana
+docker compose --profile langfuse up                          # + langfuse and its storage stack
+docker compose --profile observability --profile langfuse up  # everything
+```
+
+| Service | URL | Notes |
+|---|---|---|
+| Website | http://localhost:3000 | the WebUI (Training / Inference / Compare tabs) |
+| API | http://localhost:8000 | docs at `/docs` |
+| Grafana | http://localhost:3001 | `--profile observability`; anonymous viewer access, no login needed |
+| Prometheus | http://localhost:9090 | `--profile observability` |
+| Langfuse | http://localhost:3002 | `--profile langfuse`; see [Langfuse request tracing](#observability-stack) below for API keys |
+
+Or run the pieces directly without Docker:
+
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
