@@ -47,7 +47,36 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <div className="flex-1 flex flex-col">{children}</div>
+        <footer className="border-t border-hairline">
+          <div className="max-w-7xl mx-auto px-6 md:px-10 py-6 flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
+            <span>
+              © {new Date().getFullYear()}{" "}
+              <a href="https://github.com/devops-dojo7" target="_blank" rel="noreferrer" className="text-body-strong hover:text-ink transition-colors">
+                Devops-Dojo
+              </a>{" "}
+              · Open source under the{" "}
+              <a
+                href="https://github.com/devops-dojo7/ErsatzGPU/blob/main/LICENSE"
+                target="_blank"
+                rel="noreferrer"
+                className="text-body-strong hover:text-ink transition-colors"
+              >
+                MIT License
+              </a>
+            </span>
+            <a
+              href="https://github.com/devops-dojo7/ErsatzGPU"
+              target="_blank"
+              rel="noreferrer"
+              className="text-body-strong hover:text-ink transition-colors"
+            >
+              GitHub
+            </a>
+          </div>
+        </footer>
+      </body>
     </html>
   );
 }

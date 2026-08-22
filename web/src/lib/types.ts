@@ -313,4 +313,12 @@ export const MODEL_PRESETS: ModelPreset[] = [
   { id: "claude-3-haiku-est", label: "Claude 3 Haiku (est., unofficial)", params: 20.0e9, num_layers: 40, hidden_dim: 5120, num_heads: 40, head_dim: 128, num_kv_heads: 8 },
   { id: "claude-3.5-sonnet-est", label: "Claude 3.5 Sonnet (est., unofficial)", params: 70.0e9, num_layers: 76, hidden_dim: 8192, num_heads: 64, head_dim: 128, num_kv_heads: 8 },
   { id: "grok-2-est", label: "Grok-2 (est., unofficial, MoE)", params: 270.0e9, active_params: 115.0e9, num_layers: 64, hidden_dim: 8192, num_heads: 64, head_dim: 128, num_kv_heads: 8 },
+  // ox-alpha: an anonymous "stealth" model benchmarked publicly on OpenRouter
+  // (Aug 2026) — maker unconfirmed (fingerprinting analysis guesses Zhipu/
+  // GLM-class with ~90% confidence, per third-party blog speculation, not a
+  // vendor statement). Unlike the three estimates above, there isn't even a
+  // rumored parameter count to anchor to — every spec field on its tracker
+  // page reads "Unknown". This entry is a round-number placeholder so it
+  // shows up in the list, not a size/architecture estimate of any kind.
+  { id: "ox-alpha-placeholder", label: "ox-alpha (placeholder — no public specs exist)", params: 100.0e9, num_layers: 80, hidden_dim: 8192, num_heads: 64, head_dim: 128 },
 ];
