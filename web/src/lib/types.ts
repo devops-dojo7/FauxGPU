@@ -10,6 +10,20 @@ export interface GpuSpec {
   price_per_hr_usd: number;
   tdp_watts: number;
   idle_watts: number;
+  // Compute-die internals — null where the vendor hasn't published an exact
+  // figure (e.g. Blackwell's per-die SM/core counts for the dual-die B200).
+  architecture: string;
+  process_node: string;
+  launch_year: number | null;
+  transistors_b: number | null;
+  sm_count: number | null;
+  core_count: number | null;
+  core_label: string;
+  matrix_core_count: number | null;
+  matrix_core_label: string | null;
+  boost_clock_ghz: number | null;
+  l2_cache_mb: number | null;
+  interconnect_name: string | null;
 }
 
 export interface Fabric {

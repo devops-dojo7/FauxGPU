@@ -13,6 +13,13 @@ export interface ModelPanelState {
   fp32MasterCopy: boolean;
   checkpointing: boolean;
   training: boolean;
+  customName: string;
+}
+
+/** Display name for a model config — the custom name if set, else the matching preset's label. */
+export function getModelLabel(state: Pick<ModelPanelState, "presetId" | "customName">): string {
+  if (state.presetId === "custom") return state.customName.trim() || "Custom";
+  return MODEL_PRESETS.find((p) => p.id === state.presetId)?.label ?? state.presetId;
 }
 
 export function ModelPanel({
@@ -48,6 +55,20 @@ export function ModelPanel({
             </Select>
           </Field>
         </div>
+
+        {state.presetId === "custom" && (
+          <div className="col-span-2">
+            <Field label="Model name">
+              <input
+                type="text"
+                className="rounded-md border border-hairline-strong bg-surface-card px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-ink focus:border-2 focus:px-[11px] focus:py-[7px]"
+                value={state.customName}
+                onChange={(e) => set({ customName: e.target.value })}
+                placeholder="e.g. My-Finetune-7B"
+              />
+            </Field>
+          </div>
+        )}
 
         <div className="col-span-2">
           <ModelArchBadges model={state.model} />

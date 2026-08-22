@@ -23,6 +23,22 @@ class GpuSpec:
     price_per_hr_usd: float
     tdp_watts: float
     idle_watts: float
+    # Compute-die internals, for readers who want to look past the top-line
+    # throughput numbers. Left null rather than guessed where a vendor
+    # hasn't published an exact figure (e.g. Blackwell's per-die SM/core
+    # counts, which NVIDIA has not disclosed for the dual-die B200).
+    architecture: str = ""
+    process_node: str = ""
+    launch_year: int | None = None
+    transistors_b: float | None = None
+    sm_count: int | None = None
+    core_count: int | None = None
+    core_label: str = "CUDA Cores"
+    matrix_core_count: int | None = None
+    matrix_core_label: str | None = None
+    boost_clock_ghz: float | None = None
+    l2_cache_mb: float | None = None
+    interconnect_name: str | None = None
 
 
 @dataclass(frozen=True)

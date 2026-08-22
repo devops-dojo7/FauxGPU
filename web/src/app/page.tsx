@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { calculateCost, calculateVram, fetchFabrics, fetchGpus } from "@/lib/api";
 import { CostResponse, Fabric, GpuSpec, MODEL_PRESETS, VramResponse } from "@/lib/types";
-import { ModelPanel, ModelPanelState } from "@/components/ModelPanel";
+import { ModelPanel, ModelPanelState, getModelLabel } from "@/components/ModelPanel";
+import { ComparePanel } from "@/components/ComparePanel";
 import { GpuPicker } from "@/components/GpuPicker";
 import { VramPanel } from "@/components/VramPanel";
 import { TopologyPanel, TopologyState } from "@/components/TopologyPanel";
@@ -19,7 +20,7 @@ import { ParallelismCurvePanel } from "@/components/ParallelismCurvePanel";
 import { decodeConfig, encodeConfig } from "@/lib/shareConfig";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-type Tab = "training" | "inference";
+type Tab = "training" | "inference" | "compare";
 
 interface SharedConfig {
   modelState: ModelPanelState;
@@ -46,6 +47,7 @@ export default function Home() {
     fp32MasterCopy: true,
     checkpointing: false,
     training: true,
+    customName: "",
   });
 
   const [topoState, setTopoState] = useState<TopologyState>({
@@ -201,6 +203,7 @@ export default function Home() {
                 [
                   ["training", "Training"],
                   ["inference", "Inference (llm-d)"],
+                  ["compare", "Compare"],
                 ] as [Tab, string][]
               ).map(([id, label]) => (
                 <button
@@ -262,7 +265,7 @@ export default function Home() {
               />
               <LiveTrainingPanel
                 model={modelState.model}
-                modelLabel={modelState.presetId}
+                modelLabel={getModelLabel(modelState)}
                 topology={{
                   shape: topoState.shape,
                   gpu_id: gpuId,
@@ -309,18 +312,30 @@ export default function Home() {
             />
             <LiveInferencePlayground
               model={modelState.model}
-              modelLabel={modelState.presetId}
+              modelLabel={getModelLabel(modelState)}
               gpu={gpu}
               precision={inferenceInputs.precision}
             />
             <MultiRequestPlayground
               model={modelState.model}
-              modelLabel={modelState.presetId}
+              modelLabel={getModelLabel(modelState)}
               gpu={gpu}
               precision={inferenceInputs.precision}
             />
             <SpeculativeDecodingPanel targetModel={modelState.model} gpu={gpu} precision={inferenceInputs.precision} />
           </div>
+        )}
+
+        {tab === "compare" && (
+          <ComparePanel
+            gpu={gpu}
+            gpuId={gpuId}
+            topoState={topoState}
+            costInputs={costInputs}
+            inferenceInputs={inferenceInputs}
+            workload={modelState}
+            numGpus={numGpus}
+          />
         )}
       </div>
     </div>
