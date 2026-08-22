@@ -187,7 +187,7 @@ export function MultiRequestPlayground({
 
   return (
     <Card title="Multi-request playground">
-      <p className="text-xs text-black/45 dark:text-white/45 mb-4">
+      <p className="text-xs text-muted mb-4">
         Run several prompts concurrently against one GPU to see continuous batching and prefill queueing in action:
         requests queue for prefill one at a time (later ones wait longer for their first token), then decode together
         in a shared batch — batch size shrinks as requests finish, so survivors speed up.
@@ -196,9 +196,9 @@ export function MultiRequestPlayground({
       <div className="space-y-2 mb-3">
         {lanes.map((lane, i) => (
           <div key={lane.id} className="flex items-center gap-2">
-            <span className="text-xs text-black/40 dark:text-white/40 w-4">{i + 1}</span>
+            <span className="text-xs text-muted-soft w-4">{i + 1}</span>
             <input
-              className="flex-1 rounded-md border border-black/15 dark:border-white/15 bg-white dark:bg-black/40 px-2.5 py-1.5 text-sm outline-none focus:border-blue-500"
+              className="flex-1 rounded-md border border-hairline-strong bg-surface-card text-ink px-2.5 py-1.5 text-sm outline-none focus:border-ink"
               value={lane.prompt}
               onChange={(e) => updateLane(lane.id, { prompt: e.target.value })}
               disabled={running}
@@ -210,7 +210,7 @@ export function MultiRequestPlayground({
             <button
               onClick={() => removeLane(lane.id)}
               disabled={running || lanes.length <= 1}
-              className="text-black/40 dark:text-white/40 hover:text-red-500 disabled:opacity-30 px-1"
+              className="text-muted-soft hover:text-error disabled:opacity-30 px-1"
               title="Remove request"
             >
               ✕
@@ -221,7 +221,7 @@ export function MultiRequestPlayground({
                   lane.status === "decoding"
                     ? "text-emerald-500"
                     : lane.status === "done"
-                      ? "text-black/40 dark:text-white/40"
+                      ? "text-muted-soft"
                       : "text-amber-500"
                 }`}
               >
@@ -237,15 +237,15 @@ export function MultiRequestPlayground({
         <button
           onClick={addLane}
           disabled={running || lanes.length >= MAX_LANES}
-          className="text-xs px-2.5 py-1 rounded-md border border-black/15 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-40"
+          className="text-xs px-2.5 py-1 rounded-md border border-hairline-strong hover:bg-surface-strong disabled:opacity-40"
         >
           + Add request
         </button>
-        <label className="flex items-center gap-1.5 text-xs text-black/60 dark:text-white/60">
+        <label className="flex items-center gap-1.5 text-xs text-body">
           Cache hit %
           <input
             type="number"
-            className="w-14 rounded-md border border-black/15 dark:border-white/15 bg-white dark:bg-black/40 px-1.5 py-1 text-xs"
+            className="w-14 rounded-md border border-hairline-strong bg-surface-card text-ink px-1.5 py-1 text-xs"
             value={cacheHitPct}
             min={0}
             max={100}
@@ -256,28 +256,28 @@ export function MultiRequestPlayground({
       </div>
 
       {oomError && (
-        <p className="text-sm text-red-500 mb-4 rounded-lg border border-red-500/25 bg-red-500/[0.06] p-3">⚠ {oomError}</p>
+        <p className="text-sm text-error mb-4 rounded-lg border border-red-500/25 bg-red-500/[0.06] p-3">⚠ {oomError}</p>
       )}
 
       <div className="flex gap-2 mb-5">
         <button
           onClick={runAll}
           disabled={!gpu || running}
-          className="px-4 py-1.5 rounded-md text-sm font-medium bg-blue-500 text-white disabled:opacity-40 hover:bg-blue-600 transition-colors"
+          className="px-4 py-1.5 rounded-full text-sm font-medium bg-primary text-on-primary disabled:opacity-40 hover:bg-primary-active transition-colors"
         >
           {running ? "Running…" : `Run ${lanes.length} requests`}
         </button>
         {running && (
           <button
             onClick={stop}
-            className="px-4 py-1.5 rounded-md text-sm font-medium border border-black/15 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            className="px-4 py-1.5 rounded-full text-sm font-medium border border-hairline-strong hover:bg-surface-strong transition-colors"
           >
             Stop
           </button>
         )}
       </div>
 
-      {!gpu && <p className="text-sm text-black/45 dark:text-white/45">Pick a GPU above to run the playground.</p>}
+      {!gpu && <p className="text-sm text-muted">Pick a GPU above to run the playground.</p>}
 
       {gpu && lanes.some((l) => l.status !== "idle") && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -1,9 +1,19 @@
 import type { Metadata } from "next";
-import { Source_Serif_4, Geist_Mono } from "next/font/google";
+import { Inter, EB_Garamond, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
-const sourceSerif = Source_Serif_4({
-  variable: "--font-serif",
+// Inter carries body/nav/buttons/captions; EB Garamond at weight 300 is the
+// open-source substitute for ElevenLabs' licensed Waldenburg Light display
+// serif (see DESIGN.md "Note on Font Substitutes") — used for headlines only.
+const inter = Inter({
+  variable: "--font-sans",
+  subsets: ["latin"],
+});
+
+const displaySerif = EB_Garamond({
+  variable: "--font-display",
+  weight: "variable",
   subsets: ["latin"],
 });
 
@@ -21,8 +31,22 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${sourceSerif.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${displaySerif.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* Runs before paint so an explicit saved theme (or system preference,
+            already handled by the CSS media query) never flashes light-then-dark. */}
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `try {
+              var t = localStorage.getItem("theme");
+              if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+            } catch (e) {}`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

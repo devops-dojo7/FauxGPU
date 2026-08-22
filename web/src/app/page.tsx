@@ -17,6 +17,7 @@ import { SpeculativeDecodingPanel } from "@/components/SpeculativeDecodingPanel"
 import { ThroughputCurvePanel } from "@/components/ThroughputCurvePanel";
 import { ParallelismCurvePanel } from "@/components/ParallelismCurvePanel";
 import { decodeConfig, encodeConfig } from "@/lib/shareConfig";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type Tab = "training" | "inference";
 
@@ -174,21 +175,20 @@ export default function Home() {
   const fabric = fabrics.find((f) => f.id === topoState.fabricId);
 
   return (
-    <div className="min-h-screen">
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-80 bg-gradient-to-b from-blue-500/10 via-transparent to-transparent" />
+    <div className="min-h-screen relative overflow-x-hidden">
+      <div className="gradient-orb gradient-orb-sky w-[420px] h-[420px] -top-40 -left-32" />
+      <div className="gradient-orb gradient-orb-lavender w-[360px] h-[360px] -top-24 right-0" />
 
       <div className="relative max-w-7xl mx-auto p-6 md:p-10">
-        <header className="mb-8 flex flex-col gap-5">
+        <header className="mb-8 flex flex-col gap-6">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-500 to-emerald-500 bg-clip-text text-transparent inline-block">
-              ErsatzGPU
-            </h1>
-            <p className="text-sm text-black/55 dark:text-white/55 mt-1.5 max-w-2xl">
+            <h1 className="font-display text-4xl md:text-5xl text-ink inline-block">ErsatzGPU</h1>
+            <p className="text-sm text-body mt-2 max-w-2xl">
               Learn how GPU training and inference actually work — VRAM, KV cache, NVLink/InfiniBand topology,
               disaggregated serving, and real cost tradeoffs — with no GPU required.
             </p>
             {apiError && (
-              <p className="mt-3 text-sm text-red-500">
+              <p className="mt-3 text-sm text-error">
                 Couldn&apos;t reach the API ({apiError}). Is it running at{" "}
                 <code>{process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}</code>?
               </p>
@@ -196,7 +196,7 @@ export default function Home() {
           </div>
 
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <nav className="inline-flex w-fit rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.03] p-1 gap-1">
+            <nav className="inline-flex w-fit rounded-full border border-hairline bg-surface-card p-1 gap-1">
               {(
                 [
                   ["training", "Training"],
@@ -206,10 +206,8 @@ export default function Home() {
                 <button
                   key={id}
                   onClick={() => setTab(id)}
-                  className={`px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    tab === id
-                      ? "bg-blue-500 text-white shadow-sm"
-                      : "text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5"
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    tab === id ? "bg-primary text-on-primary" : "text-body hover:bg-surface-strong"
                   }`}
                 >
                   {label}
@@ -217,12 +215,15 @@ export default function Home() {
               ))}
             </nav>
 
-            <button
-              onClick={shareConfig}
-              className="px-3.5 py-1.5 rounded-md text-sm font-medium border border-black/15 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-            >
-              {shareCopied ? "Link copied!" : "Share this config"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={shareConfig}
+                className="px-4 py-1.5 rounded-full text-sm font-medium border border-hairline-strong text-ink hover:bg-surface-strong transition-colors"
+              >
+                {shareCopied ? "Link copied!" : "Share this config"}
+              </button>
+              <ThemeToggle />
+            </div>
           </div>
         </header>
 

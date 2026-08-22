@@ -49,7 +49,7 @@ export function CostPanel({
         </Field>
       </div>
 
-      <p className="text-xs uppercase tracking-wide text-black/40 dark:text-white/40 mb-2">
+      <p className="text-xs uppercase tracking-wide text-muted-soft mb-2">
         Parallelism (adds on top of the {numGpus}-GPU topology above)
       </p>
       <div className="grid grid-cols-3 md:grid-cols-5 gap-3 mb-4">
@@ -70,12 +70,12 @@ export function CostPanel({
         </Field>
       </div>
 
-      <p className="text-xs text-black/45 dark:text-white/45 mb-3">
+      <p className="text-xs text-muted mb-3">
         Cluster: {effectiveGpus} GPU{effectiveGpus > 1 ? "s" : ""} × ${pricePerHr}/hr = ${(effectiveGpus * pricePerHr).toFixed(2)}/hr
         {(state.tpDegree > 1 || state.ppDegree > 1) && ` (${numGpus} × TP${state.tpDegree} × PP${state.ppDegree})`}
       </p>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-error">{error}</p>}
       {cost && !error && (
         <>
           <div className="grid grid-cols-2 gap-4 mb-4">
@@ -88,14 +88,14 @@ export function CostPanel({
             <Stat label="Wall-clock time" value={`${cost.total_time_hours.toFixed(1)} hr`} sub={`${(cost.total_time_hours / 24).toFixed(1)} days`} />
             <Stat label="Total cost" value={formatUsd(cost.total_cost_usd)} sub={`${formatUsd(cost.cost_per_1k_tokens_usd)} / 1K tokens`} />
           </div>
-          <div className="border-t border-black/10 dark:border-white/10 pt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="border-t border-hairline pt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
             <Stat label="Power per GPU" value={`${cost.power_watts_per_gpu.toFixed(0)} W`} sub="time-weighted avg" />
             <Stat label="Cluster power" value={`${cost.total_power_kw.toFixed(1)} kW`} sub={`${effectiveGpus} GPUs`} />
             <Stat label="Total energy" value={`${formatCompact(cost.total_energy_kwh)} kWh`} sub="for the full training run" />
           </div>
         </>
       )}
-      {loading && <p className="text-sm text-black/45 dark:text-white/45">Calculating…</p>}
+      {loading && <p className="text-sm text-muted">Calculating…</p>}
     </Card>
   );
 }

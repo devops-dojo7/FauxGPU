@@ -31,7 +31,7 @@ export function LineChart({
 
   const allPoints = series.flatMap((s) => s.points);
   if (allPoints.length === 0) {
-    return <div className="text-sm text-black/45 dark:text-white/45">No data.</div>;
+    return <div className="text-sm text-muted">No data.</div>;
   }
   const xs = allPoints.map((p) => p.x);
   const ys = allPoints.map((p) => p.y);
@@ -51,7 +51,7 @@ export function LineChart({
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }}>
         <g transform={`translate(${padding.left},${padding.top})`}>
           {[0, 0.5, 1].map((t) => (
-            <line key={t} x1={0} x2={plotW} y1={plotH * t} y2={plotH * t} className="stroke-black/10 dark:stroke-white/10" strokeWidth={1} />
+            <line key={t} x1={0} x2={plotW} y1={plotH * t} y2={plotH * t} className="stroke-hairline-strong" strokeWidth={1} />
           ))}
           {series.map((s) => {
             const path = s.points
@@ -61,16 +61,16 @@ export function LineChart({
               .join(" ");
             return <path key={s.label} d={path} fill="none" stroke={s.color} strokeWidth={2} />;
           })}
-          <text x={-8} y={4} textAnchor="end" className="fill-black/40 dark:fill-white/40" fontSize={10}>
+          <text x={-8} y={4} textAnchor="end" className="fill-muted-soft" fontSize={10}>
             {fy(yMax)}
           </text>
-          <text x={-8} y={plotH} textAnchor="end" className="fill-black/40 dark:fill-white/40" fontSize={10}>
+          <text x={-8} y={plotH} textAnchor="end" className="fill-muted-soft" fontSize={10}>
             {fy(0)}
           </text>
-          <text x={0} y={plotH + 18} textAnchor="start" className="fill-black/40 dark:fill-white/40" fontSize={10}>
+          <text x={0} y={plotH + 18} textAnchor="start" className="fill-muted-soft" fontSize={10}>
             {fx(xMin)}
           </text>
-          <text x={plotW} y={plotH + 18} textAnchor="end" className="fill-black/40 dark:fill-white/40" fontSize={10}>
+          <text x={plotW} y={plotH + 18} textAnchor="end" className="fill-muted-soft" fontSize={10}>
             {fx(xMax)}
           </text>
         </g>
@@ -78,13 +78,13 @@ export function LineChart({
       <div className="flex items-center justify-between mt-1">
         <div className="flex flex-wrap gap-3">
           {series.map((s) => (
-            <span key={s.label} className="flex items-center gap-1.5 text-xs text-black/60 dark:text-white/60">
+            <span key={s.label} className="flex items-center gap-1.5 text-xs text-body">
               <span className="h-2 w-2 rounded-sm" style={{ background: s.color }} />
               {s.label}
             </span>
           ))}
         </div>
-        <span className="text-xs text-black/40 dark:text-white/40">
+        <span className="text-xs text-muted-soft">
           {xLabel} → {yLabel}
         </span>
       </div>

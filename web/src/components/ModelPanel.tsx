@@ -105,7 +105,7 @@ export function ModelPanel({
         </Field>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-black/10 dark:border-white/10 pt-4">
+      <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-hairline pt-4">
         <Toggle checked={state.training} onChange={(v) => set({ training: v })} label="Training (vs. inference-only)" />
         {state.training && (
           <>

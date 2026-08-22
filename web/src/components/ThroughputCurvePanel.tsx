@@ -72,13 +72,13 @@ export function ThroughputCurvePanel({
 
   return (
     <Card title="Throughput vs. request rate">
-      <p className="text-xs text-black/45 dark:text-white/45 mb-4">
+      <p className="text-xs text-muted mb-4">
         Sweeping incoming requests/sec at the current prompt/output length and batch size — the colocated curve
         bends down as prefill bursts eat more of the GPU&apos;s time; disaggregated stays flat because prefill runs
         on separate GPUs entirely.
       </p>
-      {error && <p className="text-sm text-red-500">{error}</p>}
-      {!gpu && <p className="text-sm text-black/45 dark:text-white/45">Pick a GPU above.</p>}
+      {error && <p className="text-sm text-error">{error}</p>}
+      {!gpu && <p className="text-sm text-muted">Pick a GPU above.</p>}
       {series && !error && (
         <LineChart
           series={series}
@@ -88,7 +88,7 @@ export function ThroughputCurvePanel({
           formatY={(v) => v.toFixed(0)}
         />
       )}
-      {loading && <p className="text-sm text-black/45 dark:text-white/45 mt-2">Sweeping…</p>}
+      {loading && <p className="text-sm text-muted mt-2">Sweeping…</p>}
     </Card>
   );
 }

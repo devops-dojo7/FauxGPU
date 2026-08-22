@@ -30,6 +30,7 @@ function gpuNode(id: string, x: number, y: number, label: string): Node {
       borderRadius: 8,
       border: "1px solid rgba(59,130,246,0.5)",
       background: "rgba(59,130,246,0.12)",
+      color: "var(--color-ink)",
     },
   };
 }
@@ -52,6 +53,7 @@ function hubNode(id: string, x: number, y: number, label: string, color: string)
       borderRadius: 8,
       border: `1px solid ${color}`,
       background: `${color}22`,
+      color: "var(--color-ink)",
     },
   };
 }
@@ -128,7 +130,7 @@ export function TopologyDiagram({
   }, [shape, gpu, gpusPerNode, numNodes, fabricName, fabricBandwidthGbps]);
 
   return (
-    <div className="h-72 w-full rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-black/20">
+    <div className="h-72 w-full rounded-lg border border-hairline bg-surface-card">
       <ReactFlow nodes={nodes} edges={edges} fitView fitViewOptions={{ padding: 0.3 }} nodesDraggable={false} nodesConnectable={false} panOnDrag zoomOnScroll={false} proOptions={{ hideAttribution: true }}>
         <Background gap={16} />
       </ReactFlow>

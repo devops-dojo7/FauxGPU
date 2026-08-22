@@ -75,12 +75,12 @@ export function ParallelismCurvePanel({
 
   return (
     <Card title="Step time vs. tensor parallel degree">
-      <p className="text-xs text-black/45 dark:text-white/45 mb-4">
+      <p className="text-xs text-muted mb-4">
         Sweeping TP degree at the current batch/sequence length: compute time drops ~linearly as matmuls split
         across more GPUs, but the per-layer NVLink activation all-reduce grows — the crossover is where adding more
         TP stops paying off.
       </p>
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-error">{error}</p>}
       {series && !error && (
         <LineChart
           series={series}
@@ -90,7 +90,7 @@ export function ParallelismCurvePanel({
           formatY={(v) => v.toFixed(0)}
         />
       )}
-      {loading && <p className="text-sm text-black/45 dark:text-white/45 mt-2">Sweeping…</p>}
+      {loading && <p className="text-sm text-muted mt-2">Sweeping…</p>}
     </Card>
   );
 }

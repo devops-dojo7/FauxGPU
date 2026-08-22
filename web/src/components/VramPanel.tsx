@@ -34,10 +34,10 @@ export function VramPanel({
 
   return (
     <Card title="VRAM breakdown">
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-error">{error}</p>}
       {!error && vram && (
         <>
-          <div className="h-8 w-full flex rounded-md overflow-hidden border border-black/10 dark:border-white/10">
+          <div className="h-8 w-full flex rounded-md overflow-hidden border border-hairline">
             {SEGMENTS.map((s) => {
               const v = vram[s.key] as number;
               const pct = total > 0 ? (v / total) * 100 : 0;
@@ -53,33 +53,33 @@ export function VramPanel({
               return (
                 <div key={s.key} className="flex items-center gap-2">
                   <span className={`h-2.5 w-2.5 rounded-sm ${s.color}`} />
-                  <span className="text-black/60 dark:text-white/60">{s.label}</span>
+                  <span className="text-body">{s.label}</span>
                   <span className="ml-auto tabular-nums">{formatGb(v)}</span>
                 </div>
               );
             })}
           </div>
 
-          <div className="mt-4 border-t border-black/10 dark:border-white/10 pt-3 flex items-baseline justify-between">
-            <span className="text-sm text-black/60 dark:text-white/60">Total (per GPU, {numGpus}-way split)</span>
-            <span className={`text-lg font-semibold tabular-nums ${overflow ? "text-red-500" : ""}`}>
+          <div className="mt-4 border-t border-hairline pt-3 flex items-baseline justify-between">
+            <span className="text-sm text-body">Total (per GPU, {numGpus}-way split)</span>
+            <span className={`text-lg font-semibold tabular-nums ${overflow ? "text-error" : ""}`}>
               {formatGb(perGpu)} {capacityPerGpu > 0 && <span className="text-sm font-normal">/ {capacityPerGpu} GB</span>}
             </span>
           </div>
           {overflow && (
-            <p className="mt-1 text-xs text-red-500">
+            <p className="mt-1 text-xs text-error">
               Doesn&apos;t fit in one {gpu?.name}. You&apos;d need more GPUs, a smaller batch/seq length, precision
               reduction, or activation checkpointing.
             </p>
           )}
           {totalCapacity > 0 && (
-            <p className="mt-2 text-xs text-black/45 dark:text-white/45">
+            <p className="mt-2 text-xs text-muted">
               Total across {numGpus} GPU{numGpus > 1 ? "s" : ""}: {formatGb(total)} of {formatGb(totalCapacity)} available
             </p>
           )}
         </>
       )}
-      {loading && <p className="text-sm text-black/45 dark:text-white/45">Calculating…</p>}
+      {loading && <p className="text-sm text-muted">Calculating…</p>}
     </Card>
   );
 }

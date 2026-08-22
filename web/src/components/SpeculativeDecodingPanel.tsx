@@ -51,7 +51,7 @@ export function SpeculativeDecodingPanel({
 
   return (
     <Card title="Speculative decoding">
-      <p className="text-xs text-black/45 dark:text-white/45 mb-4">
+      <p className="text-xs text-muted mb-4">
         A small <strong>draft</strong> model proposes <code>gamma</code> tokens cheaply and quickly; the big{" "}
         <strong>target</strong> model verifies all of them in one batched pass — about the same cost as decoding a
         single token normally. Accepted tokens are free; a low acceptance rate (draft and target disagree a lot)
@@ -81,13 +81,13 @@ export function SpeculativeDecodingPanel({
         </Field>
       </div>
 
-      <p className="text-xs text-black/45 dark:text-white/45 mb-4">
+      <p className="text-xs text-muted mb-4">
         Target: {targetModel.params >= 1e9 ? `${(targetModel.params / 1e9).toFixed(1)}B` : `${(targetModel.params / 1e6).toFixed(0)}M`}{" "}
         params · Draft: {(draftModel.params / 1e9).toFixed(2)}B params (
         {(targetModel.params / draftModel.params).toFixed(0)}× smaller)
       </p>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-error">{error}</p>}
       {result && !error && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
@@ -103,23 +103,23 @@ export function SpeculativeDecodingPanel({
 
           <div className="space-y-3">
             <div>
-              <div className="flex justify-between text-xs text-black/60 dark:text-white/60 mb-1">
+              <div className="flex justify-between text-xs text-body mb-1">
                 <span>Baseline (plain autoregressive decoding)</span>
                 <span className="tabular-nums">{result.baseline_tokens_per_sec.toFixed(1)} tok/s</span>
               </div>
-              <div className="h-5 w-full rounded-md bg-black/[0.06] dark:bg-white/[0.06] overflow-hidden">
+              <div className="h-5 w-full rounded-md bg-surface-strong overflow-hidden">
                 <div
-                  className="h-full bg-black/30 dark:bg-white/30 transition-all"
+                  className="h-full bg-muted-soft transition-all"
                   style={{ width: `${maxTps > 0 ? Math.max(2, (result.baseline_tokens_per_sec / maxTps) * 100) : 0}%` }}
                 />
               </div>
             </div>
             <div>
-              <div className="flex justify-between text-xs text-black/60 dark:text-white/60 mb-1">
+              <div className="flex justify-between text-xs text-body mb-1">
                 <span>Speculative decoding</span>
                 <span className="tabular-nums">{result.speculative_tokens_per_sec.toFixed(1)} tok/s</span>
               </div>
-              <div className="h-5 w-full rounded-md bg-black/[0.06] dark:bg-white/[0.06] overflow-hidden">
+              <div className="h-5 w-full rounded-md bg-surface-strong overflow-hidden">
                 <div
                   className={`h-full transition-all ${result.speedup >= 1 ? "bg-emerald-500" : "bg-red-500"}`}
                   style={{ width: `${maxTps > 0 ? Math.max(2, (result.speculative_tokens_per_sec / maxTps) * 100) : 0}%` }}
@@ -129,7 +129,7 @@ export function SpeculativeDecodingPanel({
           </div>
         </>
       )}
-      {loading && <p className="text-sm text-black/45 dark:text-white/45 mt-2">Calculating…</p>}
+      {loading && <p className="text-sm text-muted mt-2">Calculating…</p>}
     </Card>
   );
 }

@@ -175,7 +175,7 @@ export function LiveTrainingPanel({
 
   return (
     <Card title="Live training run">
-      <div className="mb-4 flex flex-wrap items-end gap-3 border-b border-black/10 dark:border-white/10 pb-4">
+      <div className="mb-4 flex flex-wrap items-end gap-3 border-b border-hairline pb-4">
         <Field label="Steps">
           <NumberInput value={totalSteps} min={1} max={2000} onChange={setTotalSteps} />
         </Field>
@@ -185,7 +185,7 @@ export function LiveTrainingPanel({
         <button
           onClick={startNewRun}
           disabled={starting}
-          className="px-4 py-1.5 rounded-md text-sm font-medium bg-blue-500 text-white disabled:opacity-40 hover:bg-blue-600 transition-colors"
+          className="px-4 py-1.5 rounded-full text-sm font-medium bg-primary text-on-primary disabled:opacity-40 hover:bg-primary-active transition-colors"
         >
           {starting ? "Starting…" : "Start new training run"}
         </button>
@@ -193,20 +193,20 @@ export function LiveTrainingPanel({
           <button
             onClick={launchRealJob}
             disabled={launchingK8s}
-            className="px-4 py-1.5 rounded-md text-sm font-medium border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 disabled:opacity-40 hover:bg-emerald-500/10 transition-colors"
+            className="px-4 py-1.5 rounded-full text-sm font-medium border border-emerald-500/40 text-emerald-600 disabled:opacity-40 hover:bg-emerald-500/10 transition-colors"
             title="Creates a real Kubernetes Job scheduled against the simulated GPU resources — not the fast in-process simulation"
           >
             {launchingK8s ? "Launching…" : "Launch real k8s Job"}
           </button>
         )}
-        <span className="text-xs text-black/45 dark:text-white/45">uses the model/GPU/topology selected above</span>
+        <span className="text-xs text-muted">uses the model/GPU/topology selected above</span>
       </div>
-      {startError && <p className="text-sm text-red-500 mb-3">{startError}</p>}
-      {launchError && <p className="text-sm text-red-500 mb-3">{launchError}</p>}
+      {startError && <p className="text-sm text-error mb-3">{startError}</p>}
+      {launchError && <p className="text-sm text-error mb-3">{launchError}</p>}
 
-      {listError && <p className="text-sm text-red-500">{listError}</p>}
+      {listError && <p className="text-sm text-error">{listError}</p>}
       {!listError && runs.length === 0 && (
-        <p className="text-sm text-black/45 dark:text-white/45">
+        <p className="text-sm text-muted">
           No runs yet — click &quot;Start new training run&quot; above, or deploy the K3s layer and run the sample
           trainer Job (see <code>k3s/helm/simgpu</code>).
         </p>
@@ -234,13 +234,13 @@ export function LiveTrainingPanel({
         <>
           <div className="flex items-center gap-2 mb-1">
             <span
-              className={`h-2 w-2 rounded-full ${detail.status === "running" ? "bg-emerald-500 animate-pulse" : "bg-black/30 dark:bg-white/30"}`}
+              className={`h-2 w-2 rounded-full ${detail.status === "running" ? "bg-emerald-500 animate-pulse" : "bg-muted-soft"}`}
             />
-            <span className="text-sm text-black/60 dark:text-white/60">
+            <span className="text-sm text-body">
               {detail.status === "running" ? "Running" : "Done"} · step {detail.latest_step?.step ?? 0} / {meta.total_steps}
             </span>
           </div>
-          <div className="h-2 w-full rounded-full bg-black/10 dark:bg-white/10 overflow-hidden mb-4">
+          <div className="h-2 w-full rounded-full bg-hairline overflow-hidden mb-4">
             <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progressPct}%` }} />
           </div>
 
@@ -255,9 +255,9 @@ export function LiveTrainingPanel({
             />
           </div>
 
-          <div className="text-xs font-mono bg-black/[0.03] dark:bg-white/[0.05] rounded-md p-3 space-y-0.5 max-h-40 overflow-y-auto mb-4">
+          <div className="text-xs font-mono bg-surface-strong rounded-md p-3 space-y-0.5 max-h-40 overflow-y-auto mb-4">
             {recentSteps.map((s) => (
-              <div key={s.step} className="flex justify-between text-black/60 dark:text-white/60">
+              <div key={s.step} className="flex justify-between text-body">
                 <span>step {s.step}</span>
                 <span>{formatCompact(s.tokens_seen)} tokens</span>
                 <span>{s.elapsed_s.toFixed(2)}s elapsed</span>
@@ -265,7 +265,7 @@ export function LiveTrainingPanel({
             ))}
           </div>
 
-          <p className="text-xs uppercase tracking-wide text-black/40 dark:text-white/40 mb-2">GPU monitoring (simulated)</p>
+          <p className="text-xs uppercase tracking-wide text-muted-soft mb-2">GPU monitoring (simulated)</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Sparkline label="Power draw" unit="W" data={powerSamples} color="#f59e0b" max={monitorGpu?.tdp_watts} formatValue={(v) => v.toFixed(0)} />
             <Sparkline label="SM utilization" unit="%" data={utilSamples} color="#3b82f6" max={100} formatValue={(v) => v.toFixed(0)} />

@@ -56,11 +56,11 @@ function ThroughputBar({ label, tps, maxTps, color }: { label: string; tps: numb
   const pct = maxTps > 0 ? Math.max(2, (tps / maxTps) * 100) : 0;
   return (
     <div>
-      <div className="flex justify-between text-xs text-black/60 dark:text-white/60 mb-1">
+      <div className="flex justify-between text-xs text-body mb-1">
         <span>{label}</span>
         <span className="tabular-nums">{tps.toFixed(0)} tok/s</span>
       </div>
-      <div className="h-5 w-full rounded-md bg-black/[0.06] dark:bg-white/[0.06] overflow-hidden">
+      <div className="h-5 w-full rounded-md bg-surface-strong overflow-hidden">
         <div className={`h-full ${color} transition-all`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -115,7 +115,7 @@ export function InferencePanel({
 
   return (
     <Card title="Inference & serving">
-      <div className="mb-4 rounded-lg border border-blue-500/25 bg-blue-500/[0.06] p-3 text-xs leading-relaxed text-black/70 dark:text-white/70">
+      <div className="mb-4 rounded-lg border border-hairline bg-surface-strong p-3 text-xs leading-relaxed text-body">
         Modeled on{" "}
         <a href="https://llm-d.ai/" target="_blank" rel="noreferrer" className="text-blue-500 underline underline-offset-2">
           llm-d
@@ -187,7 +187,7 @@ export function InferencePanel({
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-error">{error}</p>}
       {result && !error && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
@@ -202,13 +202,13 @@ export function InferencePanel({
             <ThroughputBar label="Disaggregated (llm-d style — separate pools)" tps={result.disaggregated_tokens_per_sec_per_gpu} maxTps={maxTps} color="bg-emerald-500" />
           </div>
 
-          <div className="border-t border-black/10 dark:border-white/10 pt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="border-t border-hairline pt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
             <Stat label="Decode pool cost" value={`$${(gpu ? gpu.price_per_hr_usd * state.decodeGpus : 0).toFixed(2)}/hr`} sub={`${state.decodeGpus} GPU${state.decodeGpus > 1 ? "s" : ""}`} />
             <Stat label="Cluster throughput" value={`${clusterTps.toFixed(0)} tok/s`} sub="disaggregated decode pool" />
             <Stat label="Cost / 1K tokens" value={formatUsd(costPer1kTokens)} sub="served, decode pool only" />
           </div>
 
-          <div className="border-t border-black/10 dark:border-white/10 pt-4 mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="border-t border-hairline pt-4 mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
             <Stat label="Usable VRAM" value={`${result.usable_vram_gb.toFixed(0)} GB`} sub={`${state.gpuMemoryUtilizationPct}% of ${gpu?.vram_gb ?? 0} GB`} />
             <Stat label="Weights" value={`${result.weights_gb.toFixed(0)} GB`} sub="all experts resident, if MoE" />
             <Stat label="KV cache budget" value={`${result.kv_budget_gb.toFixed(1)} GB`} sub="usable VRAM minus weights" />
@@ -220,7 +220,7 @@ export function InferencePanel({
           </div>
         </>
       )}
-      {loading && <p className="text-sm text-black/45 dark:text-white/45 mt-2">Calculating…</p>}
+      {loading && <p className="text-sm text-muted mt-2">Calculating…</p>}
     </Card>
   );
 }

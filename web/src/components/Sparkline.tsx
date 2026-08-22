@@ -34,12 +34,12 @@ export function Sparkline({
   const areaPath = points.length > 0 ? `${linePath} L${width},${height} L0,${height} Z` : "";
 
   return (
-    <div className="rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.04] p-3">
+    <div className="rounded-lg border border-hairline bg-surface-strong p-3">
       <div className="flex items-baseline justify-between mb-1">
-        <span className="text-xs text-black/50 dark:text-white/50">{label}</span>
+        <span className="text-xs text-muted">{label}</span>
         <span className="text-sm font-semibold tabular-nums" style={{ color }}>
           {formatValue ? formatValue(current) : current.toFixed(1)}
-          {unit && <span className="text-xs font-normal text-black/40 dark:text-white/40 ml-0.5">{unit}</span>}
+          {unit && <span className="text-xs font-normal text-muted-soft ml-0.5">{unit}</span>}
         </span>
       </div>
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-11" preserveAspectRatio="none">

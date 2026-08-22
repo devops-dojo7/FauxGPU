@@ -131,7 +131,7 @@ export function LiveInferencePlayground({
 
   return (
     <Card title="Live prompt playground">
-      <p className="text-xs text-black/45 dark:text-white/45 mb-4">
+      <p className="text-xs text-muted mb-4">
         Type a prompt and watch simulated generation — timing comes from the same prefill/decode formulas as the
         panel above, paced token-by-token in real time. Output text is placeholder filler (there&apos;s no real
         model here), but TTFT, tokens/sec, and KV cache growth are the real simulated numbers.
@@ -139,7 +139,7 @@ export function LiveInferencePlayground({
 
       <Field label="Prompt">
         <textarea
-          className="rounded-md border border-black/15 dark:border-white/15 bg-white dark:bg-black/40 px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 min-h-20 resize-y"
+          className="rounded-md border border-hairline-strong bg-surface-card text-ink px-2.5 py-1.5 text-sm outline-none focus:border-ink min-h-20 resize-y"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           disabled={status === "prefill" || status === "decoding"}
@@ -159,23 +159,23 @@ export function LiveInferencePlayground({
         <button
           onClick={run}
           disabled={!gpu || status === "prefill" || status === "decoding"}
-          className="px-4 py-1.5 rounded-md text-sm font-medium bg-blue-500 text-white disabled:opacity-40 hover:bg-blue-600 transition-colors"
+          className="px-4 py-1.5 rounded-full text-sm font-medium bg-primary text-on-primary disabled:opacity-40 hover:bg-primary-active transition-colors"
         >
           {status === "prefill" || status === "decoding" ? "Running…" : "Run inference"}
         </button>
         {(status === "prefill" || status === "decoding") && (
           <button
             onClick={stop}
-            className="px-4 py-1.5 rounded-md text-sm font-medium border border-black/15 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            className="px-4 py-1.5 rounded-full text-sm font-medium border border-hairline-strong hover:bg-surface-strong transition-colors"
           >
             Stop
           </button>
         )}
       </div>
 
-      {!gpu && <p className="text-sm text-black/45 dark:text-white/45">Pick a GPU above to run the playground.</p>}
+      {!gpu && <p className="text-sm text-muted">Pick a GPU above to run the playground.</p>}
       {oomError && (
-        <p className="text-sm text-red-500 mb-4 rounded-lg border border-red-500/25 bg-red-500/[0.06] p-3">
+        <p className="text-sm text-error mb-4 rounded-lg border border-red-500/25 bg-red-500/[0.06] p-3">
           ⚠ {oomError}
         </p>
       )}
@@ -190,24 +190,24 @@ export function LiveInferencePlayground({
           </div>
 
           <div className="mb-4">
-            <div className="flex justify-between text-xs text-black/60 dark:text-white/60 mb-1">
+            <div className="flex justify-between text-xs text-body mb-1">
               <span>KV cache vs. GPU VRAM</span>
               <span className="tabular-nums">
                 {formatGb(kvCacheGb)} / {kvCapacityGb} GB
               </span>
             </div>
-            <div className="h-2.5 w-full rounded-full bg-black/[0.06] dark:bg-white/[0.06] overflow-hidden">
+            <div className="h-2.5 w-full rounded-full bg-surface-strong overflow-hidden">
               <div className="h-full bg-rose-500 transition-all" style={{ width: `${kvPct}%` }} />
             </div>
           </div>
 
-          <div className="text-sm font-mono bg-black/[0.03] dark:bg-white/[0.05] rounded-md p-3 min-h-16 leading-relaxed text-black/70 dark:text-white/70 mb-4">
-            {status === "prefill" && <span className="text-black/40 dark:text-white/40">prefilling…</span>}
+          <div className="text-sm font-mono bg-surface-strong rounded-md p-3 min-h-16 leading-relaxed text-body mb-4">
+            {status === "prefill" && <span className="text-muted-soft">prefilling…</span>}
             {outputWords.join(" ")}
             {status === "decoding" && <span className="animate-pulse">▊</span>}
           </div>
 
-          <p className="text-xs uppercase tracking-wide text-black/40 dark:text-white/40 mb-2">GPU monitoring (simulated)</p>
+          <p className="text-xs uppercase tracking-wide text-muted-soft mb-2">GPU monitoring (simulated)</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Sparkline label="Power draw" unit="W" data={powerSamples} color="#f59e0b" max={gpu.tdp_watts} formatValue={(v) => v.toFixed(0)} />
             <Sparkline label="Memory bus busy (HBM)" unit="%" data={memBusySamples} color="#10b981" max={100} formatValue={(v) => v.toFixed(0)} />

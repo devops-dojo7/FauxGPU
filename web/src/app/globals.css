@@ -1,40 +1,186 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-  color-scheme: light;
-}
-
+/* Design tokens from DESIGN.md (ElevenLabs-inspired editorial system). The
+   spec is light-only by design, but the app also ships an editorial dark
+   counterpart (warm near-black canvas, off-white ink — not the old
+   dev-tools slate/blue dark theme) toggled via [data-theme], see below. */
+/* `inline` here only exists so `--font-sans: var(--font-sans)` picks up
+   next/font's own CSS variable instead of re-declaring a var of the same
+   name — colors deliberately live in a separate, non-inline @theme block
+   below, since `inline` bakes literal values straight into the generated
+   utility CSS and would make the [data-theme]/prefers-color-scheme
+   overrides further down no-ops. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-serif);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
   --font-mono: var(--font-geist-mono);
 }
 
+@theme {
+  --color-canvas: #f5f5f5;
+  --color-canvas-soft: #fafafa;
+  --color-surface-card: #ffffff;
+  --color-surface-strong: #f0efed;
+  --color-surface-dark: #0c0a09;
+  --color-surface-dark-elevated: #1c1917;
+
+  --color-ink: #0c0a09;
+  --color-body: #4e4e4e;
+  --color-body-strong: #292524;
+  --color-muted: #777169;
+  --color-muted-soft: #a8a29e;
+
+  --color-hairline: #e7e5e4;
+  --color-hairline-soft: #f0efed;
+  --color-hairline-strong: #d6d3d1;
+
+  --color-primary: #292524;
+  --color-primary-active: #0c0a09;
+  --color-on-primary: #ffffff;
+
+  --color-gradient-mint: #a7e5d3;
+  --color-gradient-peach: #f4c5a8;
+  --color-gradient-lavender: #c8b8e0;
+  --color-gradient-sky: #a8c8e8;
+  --color-gradient-rose: #e8b8c4;
+
+  --color-success: #16a34a;
+  --color-error: #dc2626;
+
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+}
+
+:root {
+  color-scheme: light;
+}
+
+/* Editorial dark palette — warm near-black canvas / off-white ink, same
+   serif+pill+hairline language as light mode, gradient orbs dimmed so they
+   read as ambient glow instead of muddying dark surfaces. Applied when the
+   system prefers dark (unless the user explicitly chose light), and always
+   when the user explicitly chose dark — see ThemeToggle. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    /* Without this, native form controls (select dropdowns, etc.) render
-       with the OS light-theme chrome regardless of our own dark styling. */
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
+
+    --color-canvas: #17140f;
+    --color-canvas-soft: #1c1813;
+    --color-surface-card: #211d17;
+    --color-surface-strong: #2a251e;
+
+    --color-ink: #f5f4f2;
+    --color-body: #b8b2a8;
+    --color-body-strong: #e7e3dd;
+    --color-muted: #8a8377;
+    --color-muted-soft: #6b6457;
+
+    --color-hairline: #322e28;
+    --color-hairline-soft: #2a251e;
+    --color-hairline-strong: #45403a;
+
+    --color-primary: #f5f4f2;
+    --color-primary-active: #ffffff;
+    --color-on-primary: #17140f;
+
+    --color-gradient-mint: #3d7a63;
+    --color-gradient-peach: #8a5a3d;
+    --color-gradient-lavender: #5c4d78;
+    --color-gradient-sky: #3d5d7a;
+    --color-gradient-rose: #7a4a56;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-canvas: #17140f;
+  --color-canvas-soft: #1c1813;
+  --color-surface-card: #211d17;
+  --color-surface-strong: #2a251e;
+
+  --color-ink: #f5f4f2;
+  --color-body: #b8b2a8;
+  --color-body-strong: #e7e3dd;
+  --color-muted: #8a8377;
+  --color-muted-soft: #6b6457;
+
+  --color-hairline: #322e28;
+  --color-hairline-soft: #2a251e;
+  --color-hairline-strong: #45403a;
+
+  --color-primary: #f5f4f2;
+  --color-primary-active: #ffffff;
+  --color-on-primary: #17140f;
+
+  --color-gradient-mint: #3d7a63;
+  --color-gradient-peach: #8a5a3d;
+  --color-gradient-lavender: #5c4d78;
+  --color-gradient-sky: #3d5d7a;
+  --color-gradient-rose: #7a4a56;
 }
 
-/* `color-scheme` alone isn't reliably respected by every browser/OS combo
-   for native <select> popups, which can otherwise render white-on-white in
-   dark mode. Force the select control and its option list to our theme
-   colors directly as a robust fallback. */
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans), Inter, sans-serif;
+  letter-spacing: 0.16px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* EB Garamond at weight 300 — the display serif, headlines only per
+   DESIGN.md (never body copy, never bold). */
+.font-display {
+  font-family: var(--font-display), "Times New Roman", serif;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+}
+
 select,
 select option {
-  background-color: var(--background);
-  color: var(--foreground);
+  background-color: var(--color-surface-card);
+  color: var(--color-ink);
+}
+
+/* Atmospheric gradient orb — pure decoration, never a content surface.
+   Usage: <div class="gradient-orb gradient-orb-mint" /> positioned
+   absolutely behind copy. */
+.gradient-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(60px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.gradient-orb-mint { background: var(--color-gradient-mint); }
+.gradient-orb-peach { background: var(--color-gradient-peach); }
+.gradient-orb-lavender { background: var(--color-gradient-lavender); }
+.gradient-orb-sky { background: var(--color-gradient-sky); }
+.gradient-orb-rose { background: var(--color-gradient-rose); }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .gradient-orb {
+    opacity: 0.35;
+  }
+}
+:root[data-theme="dark"] .gradient-orb {
+  opacity: 0.35;
+}
+
+/* select/option native chrome doesn't inherit our CSS vars in every
+   browser's dark rendering — pin explicitly so the dropdown popup matches
+   the app instead of the OS dark theme. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) select,
+  :root:not([data-theme="light"]) select option {
+    background-color: var(--color-surface-card);
+    color: var(--color-ink);
+  }
+}
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] select option {
+  background-color: var(--color-surface-card);
+  color: var(--color-ink);
 }
