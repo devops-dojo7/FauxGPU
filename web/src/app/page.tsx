@@ -5,6 +5,7 @@ import { calculateCost, calculateVram, fetchFabrics, fetchGpus } from "@/lib/api
 import { CostResponse, Fabric, GpuSpec, MODEL_PRESETS, VramResponse } from "@/lib/types";
 import { ModelPanel, ModelPanelState, getModelLabel } from "@/components/ModelPanel";
 import { ComparePanel } from "@/components/ComparePanel";
+import { DatacenterStats } from "@/components/DatacenterStats";
 import { GpuPicker } from "@/components/GpuPicker";
 import { VramPanel } from "@/components/VramPanel";
 import { TopologyPanel, TopologyState } from "@/components/TopologyPanel";
@@ -20,7 +21,7 @@ import { ParallelismCurvePanel } from "@/components/ParallelismCurvePanel";
 import { decodeConfig, encodeConfig } from "@/lib/shareConfig";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-type Tab = "training" | "inference" | "compare";
+type Tab = "training" | "inference" | "datacenter" | "compare";
 
 interface SharedConfig {
   modelState: ModelPanelState;
@@ -203,6 +204,7 @@ export default function Home() {
                 [
                   ["training", "Training"],
                   ["inference", "Inference (llm-d)"],
+                  ["datacenter", "Datacenter"],
                   ["compare", "Compare"],
                 ] as [Tab, string][]
               ).map(([id, label]) => (
@@ -230,7 +232,7 @@ export default function Home() {
           </div>
         </header>
 
-        {tab === "compare" ? (
+        {tab === "compare" || tab === "datacenter" ? (
           <div className="mb-6 max-w-md">
             <GpuPicker gpus={gpus} selectedId={gpuId} onSelect={setGpuId} />
           </div>
@@ -260,15 +262,6 @@ export default function Home() {
             </div>
 
             <div className="lg:col-span-2 flex flex-col gap-6">
-              <TopologyPanel state={topoState} onChange={setTopoState} gpu={gpu} fabrics={fabrics} />
-              <TopologyDiagram
-                shape={topoState.shape}
-                gpu={gpu}
-                gpusPerNode={topoState.shape === "single_gpu" ? 1 : topoState.gpusPerNode}
-                numNodes={topoState.shape === "multi_node" ? topoState.numNodes : 1}
-                fabricName={fabric?.name ?? "Fabric"}
-                fabricBandwidthGbps={fabric?.bandwidth_gbps ?? 0}
-              />
               <LiveTrainingPanel
                 model={modelState.model}
                 modelLabel={getModelLabel(modelState)}
@@ -329,6 +322,21 @@ export default function Home() {
               precision={inferenceInputs.precision}
             />
             <SpeculativeDecodingPanel targetModel={modelState.model} gpu={gpu} precision={inferenceInputs.precision} />
+          </div>
+        )}
+
+        {tab === "datacenter" && (
+          <div className="flex flex-col gap-6">
+            <TopologyPanel state={topoState} onChange={setTopoState} gpu={gpu} fabrics={fabrics} />
+            <TopologyDiagram
+              shape={topoState.shape}
+              gpu={gpu}
+              gpusPerNode={topoState.shape === "single_gpu" ? 1 : topoState.gpusPerNode}
+              numNodes={topoState.shape === "multi_node" ? topoState.numNodes : 1}
+              fabricName={fabric?.name ?? "Fabric"}
+              fabricBandwidthGbps={fabric?.bandwidth_gbps ?? 0}
+            />
+            <DatacenterStats gpu={gpu} numGpus={numGpus} />
           </div>
         )}
 
