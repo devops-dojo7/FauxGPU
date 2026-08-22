@@ -230,10 +230,16 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <ModelPanel state={modelState} onChange={setModelState} />
-          <GpuPicker gpus={gpus} selectedId={gpuId} onSelect={setGpuId} />
-        </div>
+        {tab === "compare" ? (
+          <div className="mb-6 max-w-md">
+            <GpuPicker gpus={gpus} selectedId={gpuId} onSelect={setGpuId} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <ModelPanel state={modelState} onChange={setModelState} />
+            <GpuPicker gpus={gpus} selectedId={gpuId} onSelect={setGpuId} />
+          </div>
+        )}
 
         {tab === "training" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

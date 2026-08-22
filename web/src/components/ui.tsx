@@ -24,7 +24,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 }
 
 const controlClass =
-  "rounded-md border border-hairline-strong bg-surface-card px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-ink focus:border-2 focus:px-[11px] focus:py-[7px]";
+  "w-full min-w-0 rounded-md border border-hairline-strong bg-surface-card px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-ink focus:border-2 focus:px-[11px] focus:py-[7px]";
 
 export function Select({
   value,
