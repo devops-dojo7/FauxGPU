@@ -1,0 +1,160 @@
+{
+  "title": "k6 Load Test — ErsatzGPU API",
+  "uid": "simgpu-k6-load-test",
+  "tags": ["simgpu", "k6", "load-test"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    { "type": "row", "id": 1, "title": "HTTP requests", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Request rate by scenario",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum(rate(k6_http_reqs_total[1m])) by (scenario)",
+          "legendFormat": "{{scenario}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Virtual users",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 15 } }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "k6_vus",
+          "legendFormat": "VUs",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 4,
+      "title": "GPU limits — decode_batch_size sweep (POST /calculate/inference)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 }
+    },
+    {
+      "id": 5,
+      "type": "barchart",
+      "title": "Decode step time vs. batch size — where it starts climbing is where this GPU/model stops scaling",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "options": { "orientation": "horizontal", "xTickLabelRotation": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "k6_gpu_decode_step_ms_p99",
+          "legendFormat": "batch {{batch_size}}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "barchart",
+      "title": "Max concurrent sequences vs. batch size — 0 means the batch no longer fits in VRAM",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": null }] },
+          "custom": { "thresholdsStyle": { "mode": "off" } }
+        },
+        "overrides": []
+      },
+      "options": { "orientation": "horizontal", "xTickLabelRotation": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "k6_gpu_max_concurrent_sequences_p99",
+          "legendFormat": "batch {{batch_size}}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 7,
+      "title": "API server concurrency limit — ramping VUs against POST /inference/stream",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Stream completion latency (p99) vs. concurrent VUs",
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "custom": { "fillOpacity": 10, "axisPlacement": "auto" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "latency p99 (ms)" }, "properties": [{ "id": "unit", "value": "ms" }] },
+          { "matcher": { "id": "byName", "options": "concurrent VUs" }, "properties": [{ "id": "unit", "value": "short" }] }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "k6_api_stream_duration_ms_p99",
+          "legendFormat": "latency p99 (ms)",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "k6_vus",
+          "legendFormat": "concurrent VUs",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Stream error rate",
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "k6_api_stream_error_rate_rate",
+          "legendFormat": "error rate",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

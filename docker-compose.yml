@@ -6,6 +6,9 @@
 #   docker compose up                       # simulator only: api, web
 #   docker compose --profile observability up   # + prometheus, grafana
 #   docker compose --profile langfuse up         # + langfuse and its stack
+#   docker compose --profile loadtest run k6     # scripts/load-test.js against api,
+#                                                 #   results in Prometheus/Grafana
+#                                                 #   (needs the observability profile up too)
 #   docker compose --profile observability --profile langfuse up  # everything
 #
 # Ports: web :3000, api :8000, prometheus :9090, grafana :3001,
@@ -47,6 +50,23 @@ services:
       - "9090:9090"
     volumes:
       - ./k3s/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    # --web.enable-remote-write-receiver lets `k6 run -o experimental-prometheus-rw`
+    # push load-test metrics straight in, alongside the scraped simgpu-api metrics.
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-remote-write-receiver
+    depends_on:
+      - api
+
+  k6:
+    image: grafana/k6:latest
+    profiles: ["loadtest"]
+    volumes:
+      - ./scripts/load-test.js:/scripts/load-test.js:ro
+    environment:
+      BASE_URL: http://api:8000
+      K6_PROMETHEUS_RW_SERVER_URL: http://prometheus:9090/api/v1/write
+    command: run --out experimental-prometheus-rw /scripts/load-test.js
     depends_on:
       - api
 

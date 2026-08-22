@@ -198,13 +198,15 @@ docker compose --profile langfuse up                          # + langfuse :3002
 docker compose --profile observability --profile langfuse up  # everything
 ```
 
-Grafana comes pre-provisioned with two dashboards: this project's own
-(`k3s/grafana/dashboard.json`) and a vendored community
+Grafana comes pre-provisioned with three dashboards: this project's own
+(`k3s/grafana/dashboard.json`), a vendored community
 [NVIDIA DCGM dashboard](https://grafana.com/grafana/dashboards/23382-nvidia-mig-dcgm/)
 — the API emits real `DCGM_FI_*` metric names/labels so the standard
-community dashboard renders simulator data unmodified. Regenerate the
-resolved copies with `./scripts/generate-provisioned-dashboards.sh` after
-editing either vendored dashboard JSON.
+community dashboard renders simulator data unmodified — and a
+[k6 load-test dashboard](#load-testing-with-k6) built for
+`scripts/load-test.js`'s own metrics. Regenerate the resolved copies with
+`./scripts/generate-provisioned-dashboards.sh` after editing any of the
+three source JSON files.
 
 In-cluster, this project layers a `ServiceMonitor` and dashboard
 `ConfigMap` on top of `kube-prometheus-stack` and Langfuse's official Helm
@@ -248,6 +250,45 @@ helm upgrade simgpu k3s/helm/simgpu \
 Every optional integration (Grafana Cloud, Langfuse) is a no-op when
 unconfigured, and real credentials are always passed via `--set-string` at
 deploy time — never committed to `values.yaml`.
+
+### Load testing with k6
+
+`scripts/load-test.js` runs against a live API and pushes results straight
+into the same Prometheus/Grafana stack above:
+
+```bash
+docker compose --profile observability up -d   # api + prometheus + grafana
+docker compose --profile loadtest run k6        # runs scripts/load-test.js
+```
+
+(or `k6 run scripts/load-test.js` locally, pointing `BASE_URL` at any
+running API — no docker compose required.)
+
+It deliberately measures two *different* limits, and is honest about which
+is which:
+
+- **`gpuLimits`** sweeps `decode_batch_size` through `POST /calculate/inference`
+  — the same analytic prefill/decode math the Inference tab calls — to find
+  the simulated GPU's actual ceiling as this project models it: KV cache
+  growth vs. VRAM capacity, and `decode_step_ms` degrading as batch size
+  grows.
+- **`apiConcurrency`** ramps real concurrent virtual users against
+  `POST /inference/stream` (the SSE endpoint the live playground uses, where
+  each request paces itself with real prefill/decode timing). This finds the
+  **API server's** concurrency ceiling — uvicorn/event-loop capacity — not
+  the GPU's, since the simulator doesn't model shared-GPU contention across
+  concurrent requests. Two real limits; not the same one.
+
+Prometheus is started with `--web.enable-remote-write-receiver` so k6's
+built-in `experimental-prometheus-rw` output needs no extra plugin, and
+Grafana comes pre-provisioned with a third dashboard —
+`k3s/grafana/k6-load-test-dashboard.json` — purpose-built around
+`scripts/load-test.js`'s own metrics rather than the generic community k6
+dashboard: request rate and VUs, decode-step-time and max-concurrent-sequences
+bar charts keyed by `batch_size` (where the `gpuLimits` sweep actually stops
+fitting in VRAM), and stream latency/error-rate during the `apiConcurrency`
+ramp. Regenerate it the same way as the other two after editing:
+`./scripts/generate-provisioned-dashboards.sh`.
 
 ## Ecosystem integrations
 

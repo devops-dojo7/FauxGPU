@@ -13,6 +13,34 @@ const ROW_Y_GPU = 190;
 const ROW_Y_SWITCH = 100;
 const ROW_Y_FABRIC = 10;
 
+// At frontier scale (thousands of nodes) drawing one box per node/GPU would
+// freeze the browser. Draw a handful of real nodes for intuition, then
+// collapse the rest into a single dashed "+N more nodes" aggregate box.
+const MAX_DRAWN_NODES = 6;
+
+function aggregateNode(id: string, x: number, y: number, width: number, label: string): Node {
+  return {
+    id,
+    position: { x, y },
+    data: { label },
+    sourcePosition: Position.Top,
+    targetPosition: Position.Bottom,
+    style: {
+      width,
+      height: GPU_H,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: 11,
+      fontWeight: 600,
+      borderRadius: 8,
+      border: "1px dashed var(--color-muted-soft)",
+      background: "var(--color-surface-strong)",
+      color: "var(--color-muted)",
+    },
+  };
+}
+
 function gpuNode(id: string, x: number, y: number, label: string): Node {
   return {
     id,
@@ -84,12 +112,15 @@ export function TopologyDiagram({
     }
 
     const nodeWidth = gpusPerNode * GPU_W + (gpusPerNode - 1) * GPU_GAP;
-    const totalWidth = numNodes * nodeWidth + (numNodes - 1) * NODE_GAP;
+    const drawnNodeCount = Math.min(numNodes, MAX_DRAWN_NODES);
+    const remainingNodes = numNodes - drawnNodeCount;
+    const columnCount = drawnNodeCount + (remainingNodes > 0 ? 1 : 0);
+    const totalWidth = columnCount * nodeWidth + (columnCount - 1) * NODE_GAP;
     let cursorX = 0;
 
     const switchIds: string[] = [];
 
-    for (let n = 0; n < numNodes; n++) {
+    for (let n = 0; n < drawnNodeCount; n++) {
       const switchId = `switch-${n}`;
       const switchX = cursorX + nodeWidth / 2 - 75;
       nodes.push(hubNode(switchId, switchX, ROW_Y_SWITCH, `Node ${n} · NVLink`, "#3b82f6"));
@@ -109,6 +140,17 @@ export function TopologyDiagram({
         });
       }
       cursorX += nodeWidth + NODE_GAP;
+    }
+
+    if (remainingNodes > 0) {
+      const moreId = "nodes-more";
+      const moreX = cursorX + nodeWidth / 2 - 75;
+      nodes.push(
+        aggregateNode(moreId, moreX, ROW_Y_SWITCH, 150, `+${remainingNodes.toLocaleString()} more node${remainingNodes > 1 ? "s" : ""}`),
+      );
+      nodes.push(aggregateNode(`${moreId}-gpus`, moreX, ROW_Y_GPU, 150, `${(remainingNodes * gpusPerNode).toLocaleString()} GPUs`));
+      edges.push({ id: `e-${moreId}`, source: moreId, target: `${moreId}-gpus`, style: { stroke: "var(--color-muted-soft)" }, animated: false });
+      switchIds.push(moreId);
     }
 
     if (shape === "multi_node" && numNodes > 1) {
