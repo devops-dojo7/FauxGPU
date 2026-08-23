@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fetchK8sAvailable, fetchRun, fetchRuns, launchK8sJob, simulateRun } from "@/lib/api";
+import { fetchK8sAvailable, fetchRun, fetchRuns, launchK8sJob, simulateRun, stopRun } from "@/lib/api";
 import { GpuSpec, ModelShape, RunDetail, RunSummary, TopologyRequest } from "@/lib/types";
 import { formatCompact } from "@/lib/format";
 import { trainingStepPowerWatts } from "@/lib/simEngine";
@@ -41,6 +41,9 @@ export function LiveTrainingPanel({
   const [k8sAvailable, setK8sAvailable] = useState(false);
   const [launchingK8s, setLaunchingK8s] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
+
+  const [stopping, setStopping] = useState(false);
+  const [stopError, setStopError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchK8sAvailable()
@@ -86,7 +89,7 @@ export function LiveTrainingPanel({
         .then((d) => {
           if (cancelled) return;
           setDetail(d);
-          if (d.status === "done" && id) {
+          if (d.status !== "running" && id) {
             clearInterval(id);
             id = null;
           }
@@ -143,6 +146,16 @@ export function LiveTrainingPanel({
       })
       .catch((e) => setLaunchError(e.message))
       .finally(() => setLaunchingK8s(false));
+  };
+
+  const stopSelectedRun = () => {
+    if (!selectedId) return;
+    setStopping(true);
+    setStopError(null);
+    stopRun(selectedId)
+      .then((run) => setDetail((d) => (d ? { ...d, status: run.status } : d)))
+      .catch((e) => setStopError(e.message))
+      .finally(() => setStopping(false));
   };
 
   const meta = detail?.meta;
@@ -237,9 +250,20 @@ export function LiveTrainingPanel({
               className={`h-2 w-2 rounded-full ${detail.status === "running" ? "bg-emerald-500 animate-pulse" : "bg-muted-soft"}`}
             />
             <span className="text-sm text-body">
-              {detail.status === "running" ? "Running" : "Done"} · step {detail.latest_step?.step ?? 0} / {meta.total_steps}
+              {detail.status === "running" ? "Running" : detail.status === "stopped" ? "Stopped" : "Done"} · step{" "}
+              {detail.latest_step?.step ?? 0} / {meta.total_steps}
             </span>
+            {detail.status === "running" && (
+              <button
+                onClick={stopSelectedRun}
+                disabled={stopping}
+                className="ml-auto px-3 py-1 rounded-full text-xs font-medium border border-error/40 text-error disabled:opacity-40 hover:bg-error/10 transition-colors"
+              >
+                {stopping ? "Stopping…" : "Stop run"}
+              </button>
+            )}
           </div>
+          {stopError && <p className="text-sm text-error mb-2">{stopError}</p>}
           <div className="h-2 w-full rounded-full bg-hairline overflow-hidden mb-4">
             <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progressPct}%` }} />
           </div>

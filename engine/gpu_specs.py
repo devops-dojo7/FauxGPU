@@ -39,6 +39,10 @@ class GpuSpec:
     boost_clock_ghz: float | None = None
     l2_cache_mb: float | None = None
     interconnect_name: str | None = None
+    # Set only for devices priced as a one-time purchase rather than a cloud
+    # rental (e.g. DGX Spark) — explains what price_per_hr_usd actually means
+    # for that entry, since it's an amortized figure, not a market rate.
+    price_note: str | None = None
 
 
 @dataclass(frozen=True)

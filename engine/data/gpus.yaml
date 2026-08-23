@@ -82,6 +82,35 @@ gpus:
     l2_cache_mb: 50
     interconnect_name: NVLink 4
 
+  # Grace Hopper Superchip. tdp_watts is the whole module (Grace CPU +
+  # Hopper GPU combined, per NVIDIA's spec sheet), not GPU-alone — same
+  # caveat as the dgx-spark entry below. nvlink_gbps here is NVLink-C2C
+  # (chip-to-chip, GPU<->CPU and GPU<->GPU across paired modules), same
+  # generation/bandwidth as standalone H100's NVLink 4.
+  - id: gh200
+    vendor: NVIDIA
+    name: GH200 Grace Hopper Superchip 96GB
+    vram_gb: 96
+    mem_bandwidth_gbps: 4000
+    bf16_tflops: 990
+    fp8_tflops: 1979
+    nvlink_gbps: 900
+    price_per_hr_usd: 2.29
+    tdp_watts: 1000
+    idle_watts: 130
+    architecture: Hopper
+    process_node: "4nm"
+    launch_year: 2023
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: CUDA Cores
+    matrix_core_count: null
+    matrix_core_label: Tensor Cores (4th-gen)
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: NVLink-C2C (4th-gen)
+
   - id: a100-80gb-sxm
     vendor: NVIDIA
     name: A100 SXM4 80GB
@@ -152,6 +181,59 @@ gpus:
     matrix_core_label: Tensor Cores (4th-gen)
     boost_clock_ghz: 2.52
     l2_cache_mb: 96
+    interconnect_name: "PCIe Gen4 (no NVLink)"
+
+  # CDNA 2 predates FP8 tensor support (fp8_tflops: null) and AMD hasn't
+  # published an Infinity Fabric GPU-to-GPU bandwidth figure for either
+  # part on their public spec sheets (nvlink_gbps: null).
+  - id: mi250x
+    vendor: AMD
+    name: MI250X 128GB
+    vram_gb: 128
+    mem_bandwidth_gbps: 3277
+    bf16_tflops: 383
+    fp8_tflops: null
+    nvlink_gbps: null
+    price_per_hr_usd: 2.0
+    price_note: "Illustrative — rarely available as a standalone on-demand cloud SKU"
+    tdp_watts: 560
+    idle_watts: 75
+    architecture: CDNA 2
+    process_node: TSMC 6nm
+    launch_year: 2021
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: Stream Processors
+    matrix_core_count: null
+    matrix_core_label: Matrix Cores
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: Infinity Fabric
+
+  - id: mi210
+    vendor: AMD
+    name: MI210 64GB
+    vram_gb: 64
+    mem_bandwidth_gbps: 1600
+    bf16_tflops: 181
+    fp8_tflops: null
+    nvlink_gbps: null # PCIe card; no confirmed Infinity Fabric bridge
+    price_per_hr_usd: 1.1
+    price_note: "Illustrative — rarely available as a standalone on-demand cloud SKU"
+    tdp_watts: 300
+    idle_watts: 40
+    architecture: CDNA 2
+    process_node: TSMC 6nm
+    launch_year: 2022
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: Stream Processors
+    matrix_core_count: null
+    matrix_core_label: Matrix Cores
+    boost_clock_ghz: null
+    l2_cache_mb: null
     interconnect_name: "PCIe Gen4 (no NVLink)"
 
   - id: mi300x
@@ -273,6 +355,580 @@ gpus:
     boost_clock_ghz: 2.41
     l2_cache_mb: null
     interconnect_name: "PCIe Gen5 (no NVLink)"
+
+  # Volta/Turing predate native BF16 tensor cores (FP16-only tensor path);
+  # bf16_tflops below uses each part's dense FP16 tensor throughput as a
+  # stand-in — same 16-bit width, and this engine's compute model already
+  # treats bf16_tflops as a generic 16-bit throughput number (see
+  # engine/compute.py, which doesn't branch on the "precision" string).
+  - id: v100-sxm2
+    vendor: NVIDIA
+    name: V100 SXM2 32GB
+    vram_gb: 32
+    mem_bandwidth_gbps: 900
+    bf16_tflops: 125 # dense FP16 tensor throughput, see note above
+    fp8_tflops: null # predates FP8 tensor cores
+    nvlink_gbps: 300 # NVLink 2, NVIDIA's V100 datasheet
+    price_per_hr_usd: 0.9
+    tdp_watts: 300
+    idle_watts: 40
+    architecture: Volta
+    process_node: TSMC 12nm
+    launch_year: 2018
+    transistors_b: 21.1
+    sm_count: 80
+    core_count: 5120
+    core_label: CUDA Cores
+    matrix_core_count: 640
+    matrix_core_label: Tensor Cores (1st-gen)
+    boost_clock_ghz: 1.53
+    l2_cache_mb: 6
+    interconnect_name: NVLink 2
+
+  - id: t4
+    vendor: NVIDIA
+    name: T4 16GB
+    vram_gb: 16
+    mem_bandwidth_gbps: 300
+    bf16_tflops: 65 # dense FP16 tensor throughput, see note above — Turing has no native BF16
+    fp8_tflops: null # predates FP8 tensor cores
+    nvlink_gbps: null # PCIe only, no NVLink
+    price_per_hr_usd: 0.2
+    tdp_watts: 70
+    idle_watts: 10
+    architecture: Turing
+    process_node: TSMC 12nm
+    launch_year: 2019
+    transistors_b: 13.6
+    sm_count: 40
+    core_count: 2560
+    core_label: CUDA Cores
+    matrix_core_count: 320
+    matrix_core_label: Tensor Cores (2nd-gen)
+    boost_clock_ghz: 1.59
+    l2_cache_mb: 4
+    interconnect_name: "PCIe Gen3 (no NVLink)"
+
+  - id: a10
+    vendor: NVIDIA
+    name: A10 24GB
+    vram_gb: 24
+    mem_bandwidth_gbps: 600
+    bf16_tflops: 125
+    fp8_tflops: null # Ampere consumer/inference-class tensor cores lack FP8
+    nvlink_gbps: null # PCIe only, no NVLink
+    price_per_hr_usd: 0.6
+    tdp_watts: 150
+    idle_watts: 20
+    architecture: Ampere
+    process_node: Samsung 8N
+    launch_year: 2021
+    transistors_b: null
+    sm_count: 72 # derived: 9216 CUDA cores / 128 per SM (GA102, same ratio as other consumer-Ampere dies)
+    core_count: 9216
+    core_label: CUDA Cores
+    matrix_core_count: 288
+    matrix_core_label: Tensor Cores (3rd-gen)
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "PCIe Gen4 (no NVLink)"
+
+  - id: l4
+    vendor: NVIDIA
+    name: L4 24GB
+    vram_gb: 24
+    mem_bandwidth_gbps: 300
+    bf16_tflops: 121
+    fp8_tflops: 242
+    nvlink_gbps: null # PCIe only, no NVLink
+    price_per_hr_usd: 0.6
+    tdp_watts: 72
+    idle_watts: 10
+    architecture: Ada Lovelace
+    process_node: TSMC 4N
+    launch_year: 2023
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: CUDA Cores
+    matrix_core_count: null
+    matrix_core_label: Tensor Cores (4th-gen)
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "PCIe Gen4 (no NVLink)"
+
+  # Export-compliance SKU for the Chinese market — specs circulate via
+  # resellers/server-makers rather than a public NVIDIA datasheet page, so
+  # treat this entry as lower-confidence than the rest of the table.
+  - id: l20
+    vendor: NVIDIA
+    name: L20 48GB
+    vram_gb: 48
+    mem_bandwidth_gbps: 864
+    bf16_tflops: 119.5
+    fp8_tflops: 239
+    nvlink_gbps: null # PCIe only, no NVLink
+    price_per_hr_usd: 0.5
+    price_note: "Illustrative — primarily distributed via Chinese OEM/reseller channels, not standard Western cloud SKUs"
+    tdp_watts: 275
+    idle_watts: 35
+    architecture: Ada Lovelace
+    process_node: "TSMC 4N" # same process as other Ada Lovelace parts in this table; not independently confirmed for L20 specifically
+    launch_year: 2024
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: CUDA Cores
+    matrix_core_count: null
+    matrix_core_label: Tensor Cores (4th-gen)
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "PCIe Gen4 (no NVLink)"
+
+  # "AI mini PC" class — a desktop appliance, not a datacenter card. VRAM,
+  # memory bandwidth, GB10 SoC TDP (140W of the 240W system total), and the
+  # 1 PFLOPS FP4-sparse headline figure are NVIDIA's own published spec
+  # sheet numbers. bf16/fp8_tflops below are *derived*, not vendor-published
+  # directly: NVIDIA never states a dense BF16 figure for DGX Spark, so
+  # these apply this same file's own dense-precision-halving convention
+  # (each precision step doubles throughput, sparse = 2x dense) to that one
+  # published number: 1000 FP4-sparse -> 500 FP4-dense -> 250 FP8-dense ->
+  # 125 BF16-dense. idle_watts is a third-party measured figure (post
+  # software update improving idle from ~37W to ~25W), not a vendor spec.
+  - id: dgx-spark
+    vendor: NVIDIA
+    name: DGX Spark (GB10) 128GB
+    vram_gb: 128 # unified LPDDR5x, shared with the CPU — not dedicated GPU VRAM
+    mem_bandwidth_gbps: 273
+    bf16_tflops: 125 # derived, see note above
+    fp8_tflops: 250 # derived, see note above
+    nvlink_gbps: null # single-GPU device; ConnectX-7 links two units over network, not NVLink
+    price_per_hr_usd: 0.18
+    price_note: "Amortized from $4,699 purchase price over 3 years @ 24/7 — not a cloud rental rate"
+    tdp_watts: 240 # peak system power (GB10 SoC alone is 140W of that)
+    idle_watts: 25
+    architecture: Grace Blackwell (GB10)
+    process_node: "4nm"
+    launch_year: 2025
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: CUDA Cores
+    matrix_core_count: null
+    matrix_core_label: Tensor Cores (5th-gen)
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "ConnectX-7 200GbE (dual-unit clustering only, no NVLink)"
+
+  # A desktop/workstation Superchip (NVIDIA DGX Station), distinct from the
+  # datacenter GB300 NVL72 rack SKU — same Blackwell Ultra compute die, sold
+  # as a deskside appliance via OEM partners (MSI, ASUS, Supermicro, etc.),
+  # ordering opened 2026. tdp_watts is the whole DGX Station system's rated
+  # power (chassis+cooling+storage), not the Superchip module alone — same
+  # caveat as gh200/dgx-spark above. price_per_hr_usd is amortized from a
+  # representative $85,000 street price (OEM listings range ~$80k-$125k;
+  # no single MSRP is published) over 3 years @ 24/7.
+  - id: gb300-desktop
+    vendor: NVIDIA
+    name: GB300 Grace Blackwell Ultra Desktop Superchip 252GB
+    vram_gb: 252
+    mem_bandwidth_gbps: 7100
+    bf16_tflops: 2500
+    fp8_tflops: 5000
+    nvlink_gbps: 900 # NVLink-C2C, Grace<->Blackwell chip-to-chip (single Superchip, not a multi-GPU domain)
+    price_per_hr_usd: 3.23
+    price_note: "Amortized from a ~$85,000 representative street price over 3 years @ 24/7 — not a cloud rental rate"
+    tdp_watts: 1600
+    idle_watts: 200
+    architecture: Blackwell Ultra
+    process_node: "4nm"
+    launch_year: 2026
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: CUDA Cores
+    matrix_core_count: null
+    matrix_core_label: Tensor Cores (5th-gen)
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: NVLink-C2C (5th-gen)
+
+  # Gaudi doesn't use a point-to-point NVLink-style link — each card has
+  # on-chip RoCEv2 Ethernet ports (24x100GbE on Gaudi 2, 24x200GbE on
+  # Gaudi 3) used for both scale-up and scale-out, so nvlink_gbps is left
+  # null and the aggregate bandwidth is noted in interconnect_name instead.
+  - id: gaudi2
+    vendor: Intel
+    name: Gaudi 2 96GB
+    vram_gb: 96
+    mem_bandwidth_gbps: 2500
+    bf16_tflops: 432
+    fp8_tflops: null # Gaudi 2 shipped without native FP8 tensor support
+    nvlink_gbps: null
+    price_per_hr_usd: 1.5
+    price_note: "Illustrative — rarely available as a standalone on-demand cloud SKU"
+    tdp_watts: 600
+    idle_watts: 80
+    architecture: Gaudi 2
+    process_node: TSMC 7nm
+    launch_year: 2022
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: Tensor Processor Cores
+    matrix_core_count: null
+    matrix_core_label: Matrix Multiplication Engines
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "24x 100GbE RoCEv2 on-chip ports (~300 GB/s aggregate)"
+
+  - id: gaudi3
+    vendor: Intel
+    name: Gaudi 3 128GB
+    vram_gb: 128
+    mem_bandwidth_gbps: 3700
+    bf16_tflops: 1678
+    fp8_tflops: null # flopper listed FP8 identical to BF16 for this part, which reads as unverified rather than a real distinct figure — left null pending a clearer source
+    nvlink_gbps: null
+    price_per_hr_usd: 2.5
+    price_note: "Illustrative — rarely available as a standalone on-demand cloud SKU"
+    tdp_watts: 900
+    idle_watts: 120
+    architecture: Gaudi 3
+    process_node: TSMC 5nm
+    launch_year: 2024
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: Tensor Processor Cores
+    matrix_core_count: null
+    matrix_core_label: Matrix Multiplication Engines
+    boost_clock_ghz: null
+    l2_cache_mb: 96
+    interconnect_name: "24x 200GbE RoCEv2 on-chip ports (~1200 GB/s aggregate)"
+
+  # Hyperscaler custom silicon: AWS's own training/inference chip, sold only
+  # as EC2 capacity (Trn3 UltraServers) — never available from any other
+  # cloud and never sold as standalone hardware. price_per_hr_usd is the
+  # reported internal/effective per-chip rate, not a public list price
+  # (AWS doesn't sell individual chip-hours a la carte the way it sells
+  # instance-hours).
+  - id: trainium3
+    vendor: AWS
+    name: Trainium3 144GB
+    vram_gb: 144
+    mem_bandwidth_gbps: 4900
+    bf16_tflops: 667
+    fp8_tflops: 2520
+    nvlink_gbps: 1200 # NeuronLink over PCIe Gen6 — AWS's own scale-up fabric, not NVLink-branded
+    price_per_hr_usd: 1.8
+    price_note: "AWS EC2-exclusive (Trn3 UltraServers) — not available from other clouds or as purchasable hardware"
+    tdp_watts: 750
+    idle_watts: 95
+    architecture: Trainium3
+    process_node: TSMC N3P
+    launch_year: 2025
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: NeuronCores
+    matrix_core_count: null
+    matrix_core_label: null
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "NeuronLink over PCIe Gen6 (1200 GB/s scale-up)"
+
+  # Huawei's Ascend lineup — sourced from analyst teardown coverage (Tom's
+  # Hardware, nexgen-compute) rather than an English Huawei datasheet, since
+  # Huawei doesn't publish one; treat confidence as medium, not vendor-grade.
+  # Sold as hardware and via Huawei Cloud, effectively unavailable from
+  # Western cloud providers due to export controls — price_per_hr_usd below
+  # is illustrative only.
+  - id: ascend-910b
+    vendor: Huawei
+    name: Ascend 910B 64GB
+    vram_gb: 64
+    mem_bandwidth_gbps: 1200 # from the 910B3 sub-variant (HBM3e) — a separate figure for base 910B (HBM3) wasn't found; applied as representative for the family
+    bf16_tflops: 320
+    fp8_tflops: null # no FP8 tensor path confirmed
+    nvlink_gbps: null # Huawei's own HCCS interconnect; no GB/s figure found for this part
+    price_per_hr_usd: 1.5
+    price_note: "Illustrative — available via Huawei Cloud / Chinese OEM channels only, not Western cloud providers"
+    tdp_watts: 310
+    idle_watts: 40
+    architecture: Ascend (Da Vinci)
+    process_node: "SMIC N+1 (~7nm-class)"
+    launch_year: 2023
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: AI Cores
+    matrix_core_count: null
+    matrix_core_label: null
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "Huawei HCCS"
+
+  # Dual-die MCM (two 910B-class dies) — TDP is genuinely contested across
+  # sources (310-350W typical/measured vs 550W rated max); using the higher
+  # rated-max figure for consistency with this table's TDP convention.
+  - id: ascend-910c
+    vendor: Huawei
+    name: Ascend 910C 128GB
+    vram_gb: 128
+    mem_bandwidth_gbps: 3200
+    bf16_tflops: 780
+    fp8_tflops: null
+    nvlink_gbps: null
+    price_per_hr_usd: 2.5
+    price_note: "Illustrative — available via Huawei Cloud / Chinese OEM channels only, not Western cloud providers"
+    tdp_watts: 550
+    idle_watts: 70
+    architecture: "Ascend (Da Vinci), dual-die MCM"
+    process_node: "SMIC N+2 (~7nm-class)"
+    launch_year: 2025
+    transistors_b: 53
+    sm_count: null
+    core_count: null
+    core_label: AI Cores
+    matrix_core_count: null
+    matrix_core_label: null
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "Huawei HCCS"
+
+  # Unreleased — announced at Huawei Connect 2025, targeted Q4 2028, with
+  # Huawei itself stating specs aren't final. These are roadmap targets, not
+  # shipping figures: bf16_tflops is derived (half of the stated 4 PFLOPS
+  # dense FP8 target, following this table's precision-halving convention —
+  # Huawei hasn't stated a BF16 number at all), and tdp_watts is a rough
+  # estimate consistent with comparable ~2028-era accelerators since Huawei
+  # hasn't disclosed a power figure. Roadmap sequence per Huawei: 910C
+  # (2025, shipping) -> 950 (2026) -> 960 (2027) -> 970 (2028).
+  - id: ascend-970-roadmap
+    vendor: Huawei
+    name: "Ascend 970 (unreleased — 2028 roadmap target, preliminary)"
+    vram_gb: 288
+    mem_bandwidth_gbps: 14400
+    bf16_tflops: 2000
+    fp8_tflops: 4000
+    nvlink_gbps: 4000
+    price_per_hr_usd: 0
+    price_note: "Unreleased — Huawei's own Q4 2028 roadmap target with company-acknowledged non-final specs; no price, availability, or access model exists yet"
+    tdp_watts: 1200
+    idle_watts: 150
+    architecture: "Ascend (Da Vinci), next-gen"
+    process_node: "Not disclosed"
+    launch_year: null
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: AI Cores
+    matrix_core_count: null
+    matrix_core_label: null
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "Huawei HCCS (roadmap target)"
+
+  # Tenstorrent's own lineup page (tenstorrent.com/hardware/cards) lists
+  # p100a, p150a, and p150b as the current shipping SKUs — purchasable
+  # standalone PCIe boards, no cloud rental found anywhere. Tenstorrent
+  # publishes one throughput figure in its own "BlockFP8" block-floating
+  # format (not standard IEEE FP8); bf16_tflops here is derived as half that
+  # figure following this table's precision-halving convention, since
+  # Tenstorrent doesn't publish a separate BF16 number. price_per_hr_usd is
+  # amortized from the real purchase price, same convention as dgx-spark.
+  # p150b is identical to p150a except passive (vs active) cooling — no
+  # separate row since nothing in this schema differs.
+  - id: blackhole-p100a
+    vendor: Tenstorrent
+    name: Blackhole p100a 28GB
+    vram_gb: 28
+    mem_bandwidth_gbps: 448
+    bf16_tflops: 332
+    fp8_tflops: 664 # BlockFP8 (Tenstorrent's own format), not IEEE FP8 — see note above
+    nvlink_gbps: null # no scale-up fabric on this SKU (no QSFP-DD ports)
+    price_per_hr_usd: 0.04
+    price_note: "Amortized from a $999 purchase price over 3 years @ 24/7 — not a cloud rental rate"
+    tdp_watts: 300
+    idle_watts: 35
+    architecture: Blackhole
+    process_node: "~TSMC N6 (unconfirmed by Tenstorrent)"
+    launch_year: 2025
+    transistors_b: null
+    sm_count: null
+    core_count: 120
+    core_label: Tensix Cores
+    matrix_core_count: null
+    matrix_core_label: null
+    boost_clock_ghz: null
+    l2_cache_mb: 180 # 180MB on-chip SRAM, not a traditional L2 — closest analogous field
+    interconnect_name: "PCIe (no scale-up fabric on this SKU)"
+
+  - id: blackhole-p150a
+    vendor: Tenstorrent
+    name: Blackhole p150a 32GB
+    vram_gb: 32
+    mem_bandwidth_gbps: 512
+    bf16_tflops: 332
+    fp8_tflops: 664 # BlockFP8, see note above
+    nvlink_gbps: 400 # 4x QSFP-DD 800G scale-out ports, aggregate
+    price_per_hr_usd: 0.05
+    price_note: "Amortized from a $1,399 purchase price over 3 years @ 24/7 — not a cloud rental rate"
+    tdp_watts: 300
+    idle_watts: 35
+    architecture: Blackhole
+    process_node: "~TSMC N6 (unconfirmed by Tenstorrent)"
+    launch_year: 2025
+    transistors_b: null
+    sm_count: null
+    core_count: 120
+    core_label: Tensix Cores
+    matrix_core_count: null
+    matrix_core_label: null
+    boost_clock_ghz: null
+    l2_cache_mb: 180
+    interconnect_name: "4x QSFP-DD 800G (scale-out, ~400 GB/s aggregate)"
+
+  # Xe-HPC ("Ponte Vecchio") — predates FP8-native tensor cores. Purchasable
+  # as OEM server hardware and rentable via Intel Developer Cloud;
+  # price_per_hr_usd is derived from IDC's published $18/hr 4-GPU instance
+  # rate ($4.50/GPU-hr).
+  - id: intel-max-1550
+    vendor: Intel
+    name: Data Center GPU Max 1550 128GB
+    vram_gb: 128
+    mem_bandwidth_gbps: 3277
+    bf16_tflops: 839
+    fp8_tflops: null
+    nvlink_gbps: null # Intel Xe Link, ~53 GB/s per link — far below NVLink-class bandwidth
+    price_per_hr_usd: 4.5
+    price_note: "Derived from Intel Developer Cloud's $18/hr 4-GPU instance rate; also purchasable as OEM server hardware"
+    tdp_watts: 600
+    idle_watts: 75
+    architecture: Xe-HPC
+    process_node: "Intel 7 + TSMC N5/N7 (multi-tile chiplet)"
+    launch_year: 2023
+    transistors_b: null
+    sm_count: 128
+    core_count: 128
+    core_label: Xe-cores
+    matrix_core_count: 1024
+    matrix_core_label: XMX Engines
+    boost_clock_ghz: 1.6
+    l2_cache_mb: null
+    interconnect_name: "Intel Xe Link (~53 GB/s per link)"
+
+  # Meta's captive inference silicon, announced March 2026 — fully
+  # internal-only: Meta has stated explicitly these never leave Meta's own
+  # data centers (recommendation/ranking/inference), no cloud rental, no
+  # purchase path, ever.
+  - id: mtia-400
+    vendor: Meta
+    name: MTIA 400 288GB
+    vram_gb: 288
+    mem_bandwidth_gbps: 9200
+    bf16_tflops: 3000
+    fp8_tflops: 6000
+    nvlink_gbps: 2400 # Meta's own scale-up interconnect
+    price_per_hr_usd: 0
+    price_note: "Not rentable or purchasable — Meta's internal infrastructure only, no external access path"
+    tdp_watts: 1200
+    idle_watts: 150
+    architecture: MTIA
+    process_node: "Not disclosed"
+    launch_year: 2026
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: Cores # Meta hasn't published its own compute-unit terminology for MTIA; unused since core_count is null
+    matrix_core_count: null
+    matrix_core_label: null
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "Meta MTIA interconnect (2.4 TB/s)"
+
+  - id: mtia-450
+    vendor: Meta
+    name: MTIA 450 288GB
+    vram_gb: 288
+    mem_bandwidth_gbps: 18400
+    bf16_tflops: 3500
+    fp8_tflops: 7000
+    nvlink_gbps: 2400
+    price_per_hr_usd: 0
+    price_note: "Not rentable or purchasable — Meta's internal infrastructure only, no external access path"
+    tdp_watts: 1400
+    idle_watts: 175
+    architecture: MTIA
+    process_node: "Not disclosed"
+    launch_year: null # scheduled for mass deployment "early 2027" per Meta, not yet deployed as of this table's sourcing
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: Cores # Meta hasn't published its own compute-unit terminology for MTIA; unused since core_count is null
+    matrix_core_count: null
+    matrix_core_label: null
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "Meta MTIA interconnect"
+
+  # Microsoft's captive Azure silicon — fully internal-only, powering
+  # Copilot/Azure OpenAI Service infrastructure; no customer rental, no
+  # purchase path.
+  - id: maia-100
+    vendor: Microsoft
+    name: Maia 100 64GB
+    vram_gb: 64
+    mem_bandwidth_gbps: 1800
+    bf16_tflops: 800
+    fp8_tflops: null
+    nvlink_gbps: null
+    price_per_hr_usd: 0
+    price_note: "Not rentable or purchasable — Microsoft's internal Azure infrastructure only, no external access path"
+    tdp_watts: 700
+    idle_watts: 90
+    architecture: Maia
+    process_node: TSMC N5
+    launch_year: 2024
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: Cores # Microsoft hasn't published its own compute-unit terminology for Maia; unused since core_count is null
+    matrix_core_count: null
+    matrix_core_label: null
+    boost_clock_ghz: null
+    l2_cache_mb: 500
+    interconnect_name: null
+
+  # bf16_tflops is derived (half the stated >5 PFLOPS dense FP8 floor,
+  # following this table's precision-halving convention) since Microsoft
+  # hasn't published a BF16 figure directly — flag as approximate, not a
+  # company number.
+  - id: maia-200
+    vendor: Microsoft
+    name: Maia 200 216GB
+    vram_gb: 216
+    mem_bandwidth_gbps: 7000
+    bf16_tflops: 2500
+    fp8_tflops: 5000
+    nvlink_gbps: null
+    price_per_hr_usd: 0
+    price_note: "Not rentable or purchasable — Microsoft's internal Azure infrastructure only, no external access path"
+    tdp_watts: 750
+    idle_watts: 95
+    architecture: Maia
+    process_node: TSMC N3
+    launch_year: 2026
+    transistors_b: 140
+    sm_count: null
+    core_count: null
+    core_label: Cores # Microsoft hasn't published its own compute-unit terminology for Maia; unused since core_count is null
+    matrix_core_count: null
+    matrix_core_label: null
+    boost_clock_ghz: null
+    l2_cache_mb: 272
+    interconnect_name: null
 
 # Interconnect fabrics used to join GPUs beyond a single NVLink domain (node-to-node).
 fabrics:

@@ -147,6 +147,17 @@ Change `values.yaml` (`trainer.topologyShape`, `trainer.gpuModel`,
 step time and communication overhead change with the simulated topology.
 Tear down with `k3d cluster delete simgpu`.
 
+### GPU Operator Playground
+
+Want the guided version of the walkthrough below instead of copy-pasting
+commands? `scripts/playground-up.sh` scripts the same steps into one
+command (a 1 control-plane + 3 worker k3d cluster with fake-gpu-operator
+installed), and the website's **Playground** tab walks through it
+step-by-step — including explainers on the GPU Operator's advanced config
+surface (MIG, time-slicing, DRA, GPUDirect) and sandboxed workloads (Kata
+Containers, Confidential Containers, KubeVirt). Tear down with
+`scripts/playground-down.sh`.
+
 ### Datacenter mode: fake-gpu-operator + a 100+ node fleet
 
 The default `gpuBackend: simgpu` above is a minimal fake device-plugin —

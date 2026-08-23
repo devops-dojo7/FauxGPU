@@ -118,6 +118,14 @@ def launch_job(
     return job_name
 
 
+def delete_job(job_name: str) -> None:
+    """Stops a running trainer Job. Background propagation also deletes its
+    Pod, matching what `kubectl delete job` does by default."""
+    if not is_available():
+        raise RuntimeError("k8s Job deletion is not available (not running in-cluster, or TRAINER_IMAGE unset)")
+    client.BatchV1Api().delete_namespaced_job(name=job_name, namespace=_namespace(), propagation_policy="Background")
+
+
 def launch_inference_job(model_preset: str, gpu_id: str, precision: str) -> str:
     """Unlike launch_job()'s one-shot batch/v1 Job, the inference server is
     long-running — a Deployment + Service, matching k3s/inference-server's

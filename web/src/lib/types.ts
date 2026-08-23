@@ -24,6 +24,9 @@ export interface GpuSpec {
   boost_clock_ghz: number | null;
   l2_cache_mb: number | null;
   interconnect_name: string | null;
+  // Set only for devices priced as a one-time purchase rather than a cloud
+  // rental (e.g. DGX Spark) — explains what price_per_hr_usd means there.
+  price_note: string | null;
 }
 
 export interface Fabric {
@@ -162,7 +165,7 @@ export interface RunStep {
 
 export interface RunSummary {
   run_id: string;
-  status: "running" | "done";
+  status: "running" | "done" | "stopped";
   meta: RunMeta | null;
   latest_step: RunStep | null;
   started_at: number;
@@ -301,6 +304,16 @@ export const MODEL_PRESETS: ModelPreset[] = [
   { id: "deepseek-v3", label: "DeepSeek-V3 671B-A37B (MoE+MLA)", params: 671.0e9, active_params: 37.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576 },
   { id: "deepseek-r1", label: "DeepSeek-R1 671B-A37B (MoE+MLA)", params: 671.0e9, active_params: 37.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576 },
   { id: "kimi-k2", label: "Kimi K2 1T-A32B (MoE+MLA)", params: 1000.0e9, active_params: 32.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576 },
+  // Kimi K3's real published config (moonshotai/Kimi-K3) is a hybrid of 69
+  // linear-attention "KDA" layers + 24 gated-MLA layers across 93 layers,
+  // 896 experts (16 active) — a mix this engine's single-attention-type
+  // model can't represent. Approximated as uniform MLA (same simplification
+  // tier as DeepSeek/Kimi K2 above); head_dim/kv_latent_dim carried over
+  // from Kimi K2 since K3's exact values for those two fields weren't
+  // cleanly confirmed. params/active_params/layers/hidden_dim/heads are
+  // from the real published config, so weights-VRAM math (the dominant
+  // cost) is accurate — only the KV-cache portion is a simplification.
+  { id: "kimi-k3", label: "Kimi K3 2.8T-A104B (MoE+MLA)", params: 2800.0e9, active_params: 104.0e9, num_layers: 93, hidden_dim: 7168, num_heads: 96, head_dim: 128, kv_latent_dim: 576 },
 
   // Closed-weight frontier models — the vendor has never disclosed architecture
   // (layer count, hidden dim, head count) for these, unlike every entry above,

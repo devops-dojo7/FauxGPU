@@ -6,6 +6,8 @@ import { CostResponse, Fabric, GpuSpec, MODEL_PRESETS, VramResponse } from "@/li
 import { ModelPanel, ModelPanelState, getModelLabel } from "@/components/ModelPanel";
 import { ComparePanel } from "@/components/ComparePanel";
 import { DatacenterStats } from "@/components/DatacenterStats";
+import { PlaygroundPanel } from "@/components/PlaygroundPanel";
+import { GpuComparePanel } from "@/components/GpuComparePanel";
 import { GpuPicker } from "@/components/GpuPicker";
 import { VramPanel } from "@/components/VramPanel";
 import { TopologyPanel, TopologyState } from "@/components/TopologyPanel";
@@ -21,7 +23,7 @@ import { ParallelismCurvePanel } from "@/components/ParallelismCurvePanel";
 import { decodeConfig, encodeConfig } from "@/lib/shareConfig";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-type Tab = "training" | "inference" | "datacenter" | "compare";
+type Tab = "training" | "inference" | "datacenter" | "gpu-compare" | "compare" | "playground";
 
 interface SharedConfig {
   modelState: ModelPanelState;
@@ -205,7 +207,9 @@ export default function Home() {
                   ["training", "Training"],
                   ["inference", "Inference (llm-d)"],
                   ["datacenter", "Datacenter"],
-                  ["compare", "Compare"],
+                  ["gpu-compare", "Compare GPUs"],
+                  ["compare", "Compare Models"],
+                  ["playground", "Playground"],
                 ] as [Tab, string][]
               ).map(([id, label]) => (
                 <button
@@ -232,7 +236,7 @@ export default function Home() {
           </div>
         </header>
 
-        {tab === "compare" || tab === "datacenter" ? (
+        {tab === "playground" || tab === "gpu-compare" ? null : tab === "compare" || tab === "datacenter" ? (
           <div className="mb-6 max-w-md">
             <GpuPicker gpus={gpus} selectedId={gpuId} onSelect={setGpuId} />
           </div>
@@ -327,7 +331,7 @@ export default function Home() {
 
         {tab === "datacenter" && (
           <div className="flex flex-col gap-6">
-            <TopologyPanel state={topoState} onChange={setTopoState} gpu={gpu} fabrics={fabrics} />
+            <TopologyPanel state={topoState} onChange={setTopoState} gpu={gpu} gpus={gpus} onSelectGpu={setGpuId} fabrics={fabrics} />
             <TopologyDiagram
               shape={topoState.shape}
               gpu={gpu}
@@ -351,6 +355,10 @@ export default function Home() {
             numGpus={numGpus}
           />
         )}
+
+        {tab === "gpu-compare" && <GpuComparePanel gpus={gpus} />}
+
+        {tab === "playground" && <PlaygroundPanel />}
       </div>
     </div>
   );

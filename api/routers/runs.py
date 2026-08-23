@@ -21,6 +21,11 @@ from engine.topology import build_topology
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
+# In-process simulations run as asyncio tasks with no other handle on them —
+# tracked here so /stop can cancel the right one. k8s Jobs need no such
+# tracking since the cluster itself is the handle (k8s_launcher.delete_job).
+_sim_tasks: dict[str, asyncio.Task] = {}
+
 
 def _to_summary(run) -> RunSummary:
     return RunSummary(
@@ -59,6 +64,30 @@ def finish_run(run_id: str):
     latest = run.steps[-1] if run.steps else None
     tokens_seen = latest["tokens_seen"] if latest else 0
     grafana_push.post_annotation(f"simgpu: training run {run_id} finished — {tokens_seen} tokens", tags=["simgpu", "training-done"])
+    return _to_summary(run)
+
+
+@router.post("/{run_id}/stop", response_model=RunSummary)
+def stop_run(run_id: str):
+    run = store.get(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"Unknown run: {run_id!r}")
+    if run.status != "running":
+        return _to_summary(run)
+
+    task = _sim_tasks.get(run_id)
+    if task is not None:
+        task.cancel()
+    elif run_id.startswith("simgpu-trainer-"):
+        # A real k8s Job — deleting it is what actually stops the trainer
+        # container; the store status is separate bookkeeping the UI reads.
+        try:
+            k8s_launcher.delete_job(run_id)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Failed to stop Job: {e}") from e
+
+    run = store.stop(run_id)
+    grafana_push.post_annotation(f"simgpu: training run {run_id} stopped", tags=["simgpu", "training-stop"])
     return _to_summary(run)
 
 
@@ -116,14 +145,23 @@ async def _run_simulation(run_id: str, model: ModelShape, topo, req: SimulateRun
     start = time.time()
     tokens_seen = 0
     sleep_s = max(0.0, step.total_s / max(req.speedup, 0.001))
-    for i in range(1, req.total_steps + 1):
-        await asyncio.sleep(sleep_s)
-        tokens_seen += req.tokens_per_step
-        store.add_step(run_id, {"step": i, "tokens_seen": tokens_seen, "elapsed_s": round(time.time() - start, 2)})
-    store.finish(run_id)
-    grafana_push.post_annotation(
-        f"simgpu: simulated training run {run_id} finished — {tokens_seen} tokens", tags=["simgpu", "training-done", "in-process"]
-    )
+    try:
+        for i in range(1, req.total_steps + 1):
+            await asyncio.sleep(sleep_s)
+            tokens_seen += req.tokens_per_step
+            store.add_step(run_id, {"step": i, "tokens_seen": tokens_seen, "elapsed_s": round(time.time() - start, 2)})
+    except asyncio.CancelledError:
+        grafana_push.post_annotation(
+            f"simgpu: simulated training run {run_id} stopped — {tokens_seen} tokens", tags=["simgpu", "training-stop", "in-process"]
+        )
+        raise
+    else:
+        store.finish(run_id)
+        grafana_push.post_annotation(
+            f"simgpu: simulated training run {run_id} finished — {tokens_seen} tokens", tags=["simgpu", "training-done", "in-process"]
+        )
+    finally:
+        _sim_tasks.pop(run_id, None)
 
 
 @router.post("/simulate", response_model=RunSummary)
@@ -141,7 +179,7 @@ async def simulate_run(req: SimulateRunRequest):
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     run_id = f"sim-{uuid.uuid4().hex[:8]}"
-    asyncio.create_task(_run_simulation(run_id, model, topo, req))
+    _sim_tasks[run_id] = asyncio.create_task(_run_simulation(run_id, model, topo, req))
     await asyncio.sleep(0.05)  # let the task register the run before we respond
     run = store.get(run_id)
     if run is None:

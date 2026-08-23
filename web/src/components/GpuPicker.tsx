@@ -48,7 +48,7 @@ export function GpuPicker({
 
           <div className="mt-4 grid grid-cols-2 gap-4">
             <Stat label="VRAM" value={`${gpu.vram_gb} GB`} />
-            <Stat label="Price" value={`$${gpu.price_per_hr_usd}/hr`} />
+            <Stat label="Price" value={`$${gpu.price_per_hr_usd}/hr`} sub={gpu.price_note ?? undefined} />
             <Stat label="BF16 TFLOPS" value={gpu.bf16_tflops.toLocaleString()} />
             <Stat label="FP8 TFLOPS" value={gpu.fp8_tflops ? gpu.fp8_tflops.toLocaleString() : "—"} />
             <Stat label="Mem bandwidth" value={`${gpu.mem_bandwidth_gbps.toLocaleString()} GB/s`} />

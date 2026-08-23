@@ -104,5 +104,6 @@ export const simulateRun = (req: SimulateRunRequest) => post<SimulateRunRequest,
 export const fetchK8sAvailable = () => get<K8sAvailability>("/runs/k8s-available");
 export const launchK8sJob = (req: SimulateRunRequest) =>
   post<SimulateRunRequest, LaunchK8sJobResponse>("/runs/launch-k8s-job", req);
+export const stopRun = (runId: string) => post<Record<string, never>, RunSummary>(`/runs/${encodeURIComponent(runId)}/stop`, {});
 export const calculateSpeculativeDecoding = (req: SpeculativeDecodingRequest) =>
   post<SpeculativeDecodingRequest, SpeculativeDecodingResponse>("/calculate/speculative-decoding", req);

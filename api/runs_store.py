@@ -59,6 +59,15 @@ class RunsStore:
             run.updated_at = time.time()
             return run
 
+    def stop(self, run_id: str) -> RunState | None:
+        with self._lock:
+            run = self._runs.get(run_id)
+            if run is None:
+                return None
+            run.status = "stopped"
+            run.updated_at = time.time()
+            return run
+
     def get(self, run_id: str) -> RunState | None:
         with self._lock:
             return self._runs.get(run_id)

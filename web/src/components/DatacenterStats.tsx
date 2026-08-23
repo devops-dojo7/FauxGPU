@@ -18,7 +18,11 @@ export function DatacenterStats({ gpu, numGpus }: { gpu: GpuSpec | undefined; nu
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Stat label="Total GPUs" value={numGpus.toLocaleString()} sub={gpu.name} />
         <Stat label="Peak cluster power" value={powerLabel} sub={`${gpu.tdp_watts} W/GPU`} />
-        <Stat label="Cluster cost" value={`${formatUsd(costPerHr)}/hr`} sub={`${formatUsd(gpu.price_per_hr_usd)}/GPU-hr`} />
+        <Stat
+          label="Cluster cost"
+          value={`${formatUsd(costPerHr)}/hr`}
+          sub={gpu.price_note ?? `${formatUsd(gpu.price_per_hr_usd)}/GPU-hr`}
+        />
         <Stat label="Extrapolated" value={`${formatUsd(costPerHr * 24)}/day`} sub={`${formatUsd(costPerHr * 24 * 30)}/mo`} />
       </div>
     </Card>
