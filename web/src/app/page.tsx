@@ -197,7 +197,10 @@ export default function Home() {
           <div>
             <div className="flex items-center gap-3">
               <Image src="/logo.png" alt="ErsatzGPU logo" width={48} height={48} className="h-10 w-10 md:h-12 md:w-12 rounded-xl" priority />
-              <h1 className="font-display text-4xl md:text-5xl text-ink inline-block">ErsatzGPU</h1>
+              <h1 className="font-display text-4xl md:text-5xl inline-block tracking-tight">
+                <span className="text-ink">ERSATZ</span>
+                <span style={{ color: "#38e29b" }}>GPU</span>
+              </h1>
             </div>
             <p className="text-sm text-body mt-2 max-w-2xl">
               Learn how GPU training and inference actually work — VRAM, KV cache, NVLink/InfiniBand topology,
