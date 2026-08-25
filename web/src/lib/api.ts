@@ -3,6 +3,10 @@ import type {
   CostRequest,
   CostResponse,
   EconomicsResponse,
+  MigGpu,
+  MigPackRequest,
+  MigPackResponse,
+  MigProfile,
   Fabric,
   GpuSpec,
   InferenceRequest,
@@ -120,3 +124,6 @@ export const calculateRecommend = (req: RecommendRequest) =>
 export const fetchRunEconomics = (runId: string) => get<EconomicsResponse>(`/runs/${encodeURIComponent(runId)}/economics`);
 export const simulateScheduler = (req: SchedulerRequest) =>
   post<SchedulerRequest, SchedulerResponse>("/scheduler/simulate", req);
+export const fetchMigGpus = () => get<MigGpu[]>("/mig/gpus");
+export const fetchMigProfiles = (gpuId: string) => get<MigProfile[]>(`/mig/profiles/${encodeURIComponent(gpuId)}`);
+export const packMigRequests = (req: MigPackRequest) => post<MigPackRequest, MigPackResponse>("/mig/pack", req);

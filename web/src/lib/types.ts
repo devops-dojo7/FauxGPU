@@ -350,6 +350,48 @@ export interface SimulateRunRequest {
   checkpoint_interval_steps: number | null;
 }
 
+export interface MigGpu {
+  gpu_id: string;
+  gpu_name: string;
+}
+
+export interface MigProfile {
+  id: string;
+  compute_slots: number;
+  memory_slots: number;
+  memory_gb: number;
+}
+
+export interface MigRequest {
+  request_id: string;
+  tenant: string;
+  profile_id: string;
+}
+
+export interface MigPlacement {
+  request_id: string;
+  tenant: string;
+  profile_id: string;
+  gpu_index: number;
+  compute_slots: number;
+  memory_slots: number;
+}
+
+export interface MigPackRequest {
+  gpu_id: string;
+  pool_size: number;
+  requests: MigRequest[];
+}
+
+export interface MigPackResponse {
+  placements: MigPlacement[];
+  unplaced: MigRequest[];
+  pool_size: number;
+  gpus_used: number;
+  compute_utilization_pct: number;
+  memory_utilization_pct: number;
+}
+
 export interface ModelPreset extends ModelShape {
   id: string;
   label: string;

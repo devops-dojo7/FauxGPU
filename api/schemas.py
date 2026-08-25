@@ -323,3 +323,45 @@ class LaunchInferenceServerResponse(BaseModel):
 class LaunchK8sJobResponse(BaseModel):
     job_name: str
     run_id: str
+
+
+class MigGpuOut(BaseModel):
+    gpu_id: str
+    gpu_name: str
+
+
+class MigProfileOut(BaseModel):
+    id: str
+    compute_slots: int
+    memory_slots: int
+    memory_gb: float
+
+
+class MigRequestIn(BaseModel):
+    request_id: str
+    tenant: str
+    profile_id: str
+
+
+class MigPlacementOut(BaseModel):
+    request_id: str
+    tenant: str
+    profile_id: str
+    gpu_index: int
+    compute_slots: int
+    memory_slots: int
+
+
+class MigPackRequest(BaseModel):
+    gpu_id: str
+    pool_size: int = Field(..., gt=0)
+    requests: list[MigRequestIn]
+
+
+class MigPackResponse(BaseModel):
+    placements: list[MigPlacementOut]
+    unplaced: list[MigRequestIn]
+    pool_size: int
+    gpus_used: int
+    compute_utilization_pct: float
+    memory_utilization_pct: float
