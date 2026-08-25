@@ -241,6 +241,21 @@ class RunStepRequest(BaseModel):
     step: int
     tokens_seen: int
     elapsed_s: float
+    active_gpus: int | None = None
+
+
+class ChaosInjectRequest(BaseModel):
+    kind: str = Field(..., description="xid_error | nvlink_degradation | node_drain")
+    severity: float
+    duration_steps: int | None = None
+
+
+class ChaosEventOut(BaseModel):
+    event_id: str
+    kind: str
+    injected_at_step: int
+    duration_steps: int | None
+    severity: float
 
 
 class RunSummary(BaseModel):
@@ -254,6 +269,7 @@ class RunSummary(BaseModel):
 
 class RunDetail(RunSummary):
     steps: list[RunStepRequest]
+    events: list[ChaosEventOut]
 
 
 class SimulateRunRequest(BaseModel):

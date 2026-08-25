@@ -161,6 +161,23 @@ export interface RunStep {
   step: number;
   tokens_seen: number;
   elapsed_s: number;
+  active_gpus: number | null;
+}
+
+export type ChaosKind = "xid_error" | "nvlink_degradation" | "node_drain";
+
+export interface ChaosInjectRequest {
+  kind: ChaosKind;
+  severity: number;
+  duration_steps: number | null;
+}
+
+export interface ChaosEvent {
+  event_id: string;
+  kind: ChaosKind;
+  injected_at_step: number;
+  duration_steps: number | null;
+  severity: number;
 }
 
 export interface RunSummary {
@@ -174,6 +191,7 @@ export interface RunSummary {
 
 export interface RunDetail extends RunSummary {
   steps: RunStep[];
+  events: ChaosEvent[];
 }
 
 export interface SpeculativeDecodingRequest {

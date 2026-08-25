@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fetchK8sAvailable, fetchRun, fetchRuns, launchK8sJob, simulateRun, stopRun } from "@/lib/api";
-import { GpuSpec, ModelShape, RunDetail, RunSummary, TopologyRequest } from "@/lib/types";
+import { fetchK8sAvailable, fetchRun, fetchRuns, injectFailure, launchK8sJob, simulateRun, stopRun } from "@/lib/api";
+import { ChaosKind, GpuSpec, ModelShape, RunDetail, RunSummary, TopologyRequest } from "@/lib/types";
 import { formatCompact } from "@/lib/format";
 import { trainingStepPowerWatts } from "@/lib/simEngine";
 import { Card, Field, NumberInput, Select, Stat } from "./ui";
@@ -44,6 +44,12 @@ export function LiveTrainingPanel({
 
   const [stopping, setStopping] = useState(false);
   const [stopError, setStopError] = useState<string | null>(null);
+
+  const [chaosKind, setChaosKind] = useState<ChaosKind>("xid_error");
+  const [chaosSeverity, setChaosSeverity] = useState(5);
+  const [chaosDuration, setChaosDuration] = useState(5);
+  const [injecting, setInjecting] = useState(false);
+  const [injectError, setInjectError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchK8sAvailable()
@@ -158,6 +164,19 @@ export function LiveTrainingPanel({
       .finally(() => setStopping(false));
   };
 
+  const injectSelectedFailure = () => {
+    if (!selectedId) return;
+    setInjecting(true);
+    setInjectError(null);
+    injectFailure(selectedId, {
+      kind: chaosKind,
+      severity: chaosSeverity,
+      duration_steps: chaosKind === "node_drain" ? null : chaosDuration,
+    })
+      .catch((e) => setInjectError(e.message))
+      .finally(() => setInjecting(false));
+  };
+
   const meta = detail?.meta;
   const progressPct = meta && detail ? Math.min(100, ((detail.latest_step?.step ?? 0) / meta.total_steps) * 100) : 0;
   const recentSteps = detail ? detail.steps.slice(-8).reverse() : [];
@@ -253,6 +272,11 @@ export function LiveTrainingPanel({
               {detail.status === "running" ? "Running" : detail.status === "stopped" ? "Stopped" : "Done"} · step{" "}
               {detail.latest_step?.step ?? 0} / {meta.total_steps}
             </span>
+            {detail.latest_step?.active_gpus != null && detail.latest_step.active_gpus < meta.total_gpus && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-error/10 text-error border border-error/30">
+                {detail.latest_step.active_gpus}/{meta.total_gpus} GPUs active
+              </span>
+            )}
             {detail.status === "running" && (
               <button
                 onClick={stopSelectedRun}
@@ -264,9 +288,75 @@ export function LiveTrainingPanel({
             )}
           </div>
           {stopError && <p className="text-sm text-error mb-2">{stopError}</p>}
-          <div className="h-2 w-full rounded-full bg-hairline overflow-hidden mb-4">
+
+          {detail.status === "running" && (
+            <div className="flex flex-wrap items-end gap-2 mb-3 p-3 rounded-lg border border-hairline bg-surface-strong">
+              <Field label="Inject failure">
+                <Select
+                  value={chaosKind}
+                  onChange={(v) => {
+                    const kind = v as ChaosKind;
+                    setChaosKind(kind);
+                    setChaosSeverity(kind === "xid_error" ? 5 : kind === "nvlink_degradation" ? 0.2 : 1);
+                    setChaosDuration(kind === "nvlink_degradation" ? 10 : 5);
+                  }}
+                >
+                  <option value="xid_error">GPU Xid error (transient stall)</option>
+                  <option value="nvlink_degradation">NVLink degradation</option>
+                  <option value="node_drain">Node drain (permanent)</option>
+                </Select>
+              </Field>
+              {chaosKind === "xid_error" && (
+                <Field label="Stall multiplier">
+                  <NumberInput value={chaosSeverity} min={1.1} step={0.5} onChange={setChaosSeverity} />
+                </Field>
+              )}
+              {chaosKind === "nvlink_degradation" && (
+                <Field label="Bandwidth remaining (0-1)">
+                  <NumberInput value={chaosSeverity} min={0.01} max={0.99} step={0.05} onChange={setChaosSeverity} />
+                </Field>
+              )}
+              {chaosKind === "node_drain" && (
+                <Field label="Nodes to drain">
+                  <NumberInput value={chaosSeverity} min={1} step={1} onChange={setChaosSeverity} />
+                </Field>
+              )}
+              {chaosKind !== "node_drain" && (
+                <Field label="Duration (steps)">
+                  <NumberInput value={chaosDuration} min={1} onChange={setChaosDuration} />
+                </Field>
+              )}
+              <button
+                onClick={injectSelectedFailure}
+                disabled={injecting}
+                className="px-3 py-1.5 rounded-full text-xs font-medium border border-hairline-strong disabled:opacity-40 hover:bg-surface-card transition-colors"
+              >
+                {injecting ? "Injecting…" : "Inject"}
+              </button>
+              {injectError && <p className="text-xs text-error w-full">{injectError}</p>}
+            </div>
+          )}
+
+          <div className="h-2 w-full rounded-full bg-hairline overflow-hidden mb-1 relative">
             <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progressPct}%` }} />
           </div>
+          {detail.events.length > 0 && (
+            <div className="flex items-center gap-1.5 mb-4">
+              {detail.events.map((e) => (
+                <span
+                  key={e.event_id}
+                  className={`h-2.5 w-2.5 rounded-full ${
+                    e.kind === "xid_error" ? "bg-error" : e.kind === "nvlink_degradation" ? "bg-amber-500" : "bg-rose-600"
+                  }`}
+                  title={`${e.kind} — severity ${e.severity} — injected at step ${e.injected_at_step}${
+                    e.duration_steps ? `, lasts ${e.duration_steps} steps` : " (permanent)"
+                  }`}
+                />
+              ))}
+              <span className="text-xs text-muted-soft ml-1">chaos events (hover for details)</span>
+            </div>
+          )}
+          {detail.events.length === 0 && <div className="mb-4" />}
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <Stat label="Model / GPU" value={`${meta.model}`} sub={`${meta.gpu} × ${meta.total_gpus}`} />

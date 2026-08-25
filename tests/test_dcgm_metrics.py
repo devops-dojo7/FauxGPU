@@ -61,6 +61,20 @@ def test_temperature_rises_with_power_draw():
     assert busy_temp > idle_temp
 
 
+def test_xid_error_metric_goes_nonzero_while_injected_event_is_active():
+    store = _running_store()
+    store.inject_event("run-1", "xid_error", severity=5.0, duration_steps=3)  # injected_at_step = 1 (latest reported step)
+    run = store.get("run-1")
+
+    xid_values = {s["value"] for s in compute_dcgm_series(run) if s["name"] == "DCGM_FI_DEV_XID_ERRORS"}
+    assert xid_values == {79}
+
+    store.add_step("run-1", {"step": 10, "tokens_seen": 200, "elapsed_s": 5.0})  # step 10 is outside the 3-step window
+    run = store.get("run-1")
+    xid_values_later = {s["value"] for s in compute_dcgm_series(run) if s["name"] == "DCGM_FI_DEV_XID_ERRORS"}
+    assert xid_values_later == {0}
+
+
 def test_unknown_gpu_id_yields_no_series():
     store = RunsStore()
     store.start("run-1", {"gpu": "not-a-real-gpu", "topology": "single_gpu", "total_gpus": 1})

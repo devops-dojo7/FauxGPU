@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import threading
 import time
+import uuid
 from dataclasses import dataclass, field
 
 
@@ -18,6 +19,7 @@ class RunState:
     status: str = "running"  # "running" | "done"
     meta: dict | None = None
     steps: list[dict] = field(default_factory=list)
+    chaos_events: list[dict] = field(default_factory=list)
     started_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
 
@@ -65,6 +67,24 @@ class RunsStore:
             if run is None:
                 return None
             run.status = "stopped"
+            run.updated_at = time.time()
+            return run
+
+    def inject_event(self, run_id: str, kind: str, severity: float, duration_steps: int | None) -> RunState | None:
+        with self._lock:
+            run = self._runs.get(run_id)
+            if run is None:
+                return None
+            injected_at_step = run.steps[-1]["step"] if run.steps else 0
+            run.chaos_events.append(
+                {
+                    "event_id": uuid.uuid4().hex[:8],
+                    "kind": kind,
+                    "injected_at_step": injected_at_step,
+                    "duration_steps": duration_steps,
+                    "severity": severity,
+                }
+            )
             run.updated_at = time.time()
             return run
 

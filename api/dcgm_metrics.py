@@ -20,7 +20,10 @@ model, not a byte-for-byte reproduction of dcgm-exporter's internals:
   added so 8 simulated GPUs don't read as one identical flat trace.
 - Total energy consumption: power × the run's elapsed seconds so far —
   monotonically increasing within a run, like the real counter.
-- XID errors / PCIe replay counter: always 0 (no fault injection modeled).
+- XID errors: nonzero (a fixed representative code, 79 — "GPU has fallen off
+  the bus") while an engine.chaos "xid_error" event injected via
+  POST /runs/{run_id}/inject is active for the run's current step; 0
+  otherwise. PCIe replay counter is still always 0 — no model for it.
 NVLINK_BANDWIDTH_TOTAL is deliberately omitted — it's a real counter with no
 clean source in this simulator, and a fabricated rate() would mislead more
 than an empty panel.
@@ -33,7 +36,10 @@ import time
 
 from api.live_phase import instantaneous_power_watts
 from api.runs_store import RunState
+from engine.chaos import ChaosEvent, is_active
 from engine.gpu_specs import get_gpu
+
+_XID_FALLEN_OFF_BUS = 79  # a representative real DCGM Xid code, for display only
 
 
 def compute_dcgm_series(run: RunState) -> list[dict]:
@@ -57,6 +63,12 @@ def compute_dcgm_series(run: RunState) -> list[dict]:
 
     latest = run.steps[-1] if run.steps else None
     elapsed_s = latest["elapsed_s"] if latest else 0.0
+    latest_step_num = latest["step"] if latest else 0
+
+    xid_active = any(
+        is_active(ChaosEvent(**e), latest_step_num) for e in run.chaos_events if e["kind"] == "xid_error"
+    )
+    xid_value = _XID_FALLEN_OFF_BUS if xid_active else 0
 
     sm_clock = 1830 if gpu.tdp_watts >= 700 else 1500
     mem_clock = 2619 if gpu.mem_bandwidth_gbps > 2000 else 1215
@@ -98,7 +110,7 @@ def compute_dcgm_series(run: RunState) -> list[dict]:
         add("DCGM_FI_PROF_GR_ENGINE_ACTIVE", gr_active * jitter)
         add("DCGM_FI_PROF_PIPE_TENSOR_ACTIVE", tensor_active * jitter)
         add("DCGM_FI_PROF_DRAM_ACTIVE", dram_active * jitter)
-        add("DCGM_FI_DEV_XID_ERRORS", 0)
+        add("DCGM_FI_DEV_XID_ERRORS", xid_value)
         add("DCGM_FI_DEV_PCIE_REPLAY_COUNTER", 0)
         add("DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION", energy_mj)
 

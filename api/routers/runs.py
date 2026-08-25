@@ -7,6 +7,8 @@ from fastapi import APIRouter, HTTPException
 from api import grafana_push, k8s_launcher
 from api.runs_store import store
 from api.schemas import (
+    ChaosEventOut,
+    ChaosInjectRequest,
     EconomicsPointOut,
     EconomicsResponse,
     EconomicsSummaryOut,
@@ -18,11 +20,14 @@ from api.schemas import (
     RunSummary,
     SimulateRunRequest,
 )
+from engine.chaos import ChaosEvent, effective_step_seconds, effective_topology, is_active
 from engine.compute import estimate_step_time
 from engine.economics import compute_run_economics
 from engine.gpu_specs import get_gpu
 from engine.memory import ModelShape
 from engine.topology import build_topology
+
+_VALID_CHAOS_KINDS = {"xid_error", "nvlink_degradation", "node_drain"}
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -96,6 +101,40 @@ def stop_run(run_id: str):
     return _to_summary(run)
 
 
+@router.post("/{run_id}/inject", response_model=RunSummary)
+def inject_failure(run_id: str, req: ChaosInjectRequest):
+    run = store.get(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"Unknown run: {run_id!r}")
+    if run.status != "running":
+        raise HTTPException(status_code=409, detail=f"Run {run_id!r} is not running (status: {run.status!r})")
+
+    if req.kind not in _VALID_CHAOS_KINDS:
+        raise HTTPException(status_code=400, detail=f"Unknown chaos kind: {req.kind!r}. Known: {sorted(_VALID_CHAOS_KINDS)}")
+
+    duration_steps = req.duration_steps
+    if req.kind == "node_drain":
+        if req.severity < 1 or req.severity != int(req.severity):
+            raise HTTPException(status_code=400, detail="node_drain severity must be a positive integer (number of nodes to drain)")
+        duration_steps = None  # always permanent, regardless of what was requested
+    elif req.kind == "nvlink_degradation":
+        if not (0 < req.severity < 1):
+            raise HTTPException(status_code=400, detail="nvlink_degradation severity must be a fraction of remaining bandwidth in (0, 1)")
+        if not duration_steps or duration_steps < 1:
+            raise HTTPException(status_code=400, detail="nvlink_degradation requires duration_steps >= 1")
+    elif req.kind == "xid_error":
+        if req.severity <= 1:
+            raise HTTPException(status_code=400, detail="xid_error severity must be a stall multiplier > 1")
+        if not duration_steps or duration_steps < 1:
+            raise HTTPException(status_code=400, detail="xid_error requires duration_steps >= 1")
+
+    run = store.inject_event(run_id, req.kind, req.severity, duration_steps)
+    grafana_push.post_annotation(
+        f"simgpu: chaos injected on {run_id} — {req.kind} (severity={req.severity})", tags=["simgpu", "chaos", req.kind]
+    )
+    return _to_summary(run)
+
+
 @router.get("", response_model=list[RunSummary])
 def list_runs():
     return [_to_summary(r) for r in store.list()]
@@ -119,6 +158,7 @@ def get_run(run_id: str):
         started_at=run.started_at,
         updated_at=run.updated_at,
         steps=run.steps,
+        events=[ChaosEventOut(**e) for e in run.chaos_events],
     )
 
 
@@ -173,12 +213,32 @@ async def _run_simulation(run_id: str, model: ModelShape, topo, req: SimulateRun
     )
     start = time.time()
     tokens_seen = 0
-    sleep_s = max(0.0, step.total_s / max(req.speedup, 0.001))
     try:
         for i in range(1, req.total_steps + 1):
-            await asyncio.sleep(sleep_s)
+            run = store.get(run_id)
+            active = [ChaosEvent(**e) for e in (run.chaos_events if run else [])]
+            active = [e for e in active if is_active(e, i)]
+
+            if active:
+                step_s = effective_step_seconds(
+                    model, topo, active, tokens_per_step=req.tokens_per_step, precision=req.precision, utilization=req.utilization
+                )
+                active_gpus = effective_topology(topo, active).total_gpus
+            else:
+                step_s = step.total_s
+                active_gpus = topo.total_gpus
+
+            await asyncio.sleep(max(0.0, step_s / max(req.speedup, 0.001)))
             tokens_seen += req.tokens_per_step
-            store.add_step(run_id, {"step": i, "tokens_seen": tokens_seen, "elapsed_s": round(time.time() - start, 2)})
+            store.add_step(
+                run_id,
+                {
+                    "step": i,
+                    "tokens_seen": tokens_seen,
+                    "elapsed_s": round(time.time() - start, 2),
+                    "active_gpus": active_gpus,
+                },
+            )
     except asyncio.CancelledError:
         grafana_push.post_annotation(
             f"simgpu: simulated training run {run_id} stopped — {tokens_seen} tokens", tags=["simgpu", "training-stop", "in-process"]
