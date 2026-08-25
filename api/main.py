@@ -1,4 +1,5 @@
 import asyncio
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Response
@@ -82,4 +83,9 @@ def grafana_push_now():
 
 @app.get("/langfuse/status")
 def langfuse_status():
-    return {"tracing_available": langfuse_client.tracing_available()}
+    return {
+        "tracing_available": langfuse_client.tracing_available(),
+        # The browser needs the host-facing URL, not LANGFUSE_HOST (which
+        # points at the internal docker-network hostname the API uses).
+        "public_url": os.environ.get("LANGFUSE_PUBLIC_URL", "http://localhost:3002"),
+    }

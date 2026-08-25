@@ -19,6 +19,7 @@ import type {
   InferenceResponse,
   InferenceStreamRequest,
   K8sAvailability,
+  LangfuseStatus,
   LaunchK8sJobResponse,
   RecommendNlRequest,
   RecommendRequest,
@@ -180,6 +181,7 @@ export const deleteAiProviderKey = (provider: string) => del(`/ai/providers/${en
 export const recommendNl = (req: RecommendNlRequest) => post<RecommendNlRequest, RecommendResponse>("/ai/recommend/nl", req);
 export const generateTraceNl = (req: TraceGenerateNlRequest) =>
   post<TraceGenerateNlRequest, TraceGenerateNlResponse>("/ai/trace/generate", req);
+export const fetchLangfuseStatus = () => get<LangfuseStatus>("/langfuse/status");
 
 export const fetchGpus = () => get<GpuSpec[]>("/gpus");
 export const fetchFabrics = () => get<Fabric[]>("/gpus/fabrics");

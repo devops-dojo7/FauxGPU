@@ -78,6 +78,52 @@ async def test_recommend_nl_happy_path(ai_router, monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_recommend_nl_traces_the_call(ai_router, monkeypatch):
+    from api.schemas import AiProviderKeyIn, RecommendNlRequest
+
+    ai_router.set_provider_key("openai", AiProviderKeyIn(api_key="sk-test"))
+
+    async def fake_complete_once(provider, api_key, model, messages):
+        return json.dumps({"model": MODEL_JSON, "objective": "cost"})
+
+    monkeypatch.setattr(ai_router, "complete_once", fake_complete_once)
+
+    traced = {}
+    monkeypatch.setattr(ai_router.langfuse_client, "trace_ai_request", lambda **kwargs: traced.update(kwargs))
+
+    await ai_router.recommend_nl(RecommendNlRequest(provider="openai", model="gpt-4o", prompt="cheap 7B training run"))
+
+    assert traced["name"] == "ai-recommend-nl"
+    assert traced["provider"] == "openai"
+    assert traced["model"] == "gpt-4o"
+    assert traced["input_data"] == {"prompt": "cheap 7B training run"}
+    assert traced["output_data"]["candidates_count"] > 0
+
+
+@pytest.mark.anyio
+async def test_chat_stream_traces_the_call(ai_router, monkeypatch):
+    from api.schemas import ChatMessage, ChatRequest
+
+    async def fake_stream_chat_completion(provider, api_key, model, messages):
+        for chunk in ["Hel", "lo"]:
+            yield chunk
+
+    monkeypatch.setattr(ai_router, "stream_chat_completion", fake_stream_chat_completion)
+
+    traced = {}
+    monkeypatch.setattr(ai_router.langfuse_client, "trace_ai_request", lambda **kwargs: traced.update(kwargs))
+
+    req = ChatRequest(provider="openai", model="gpt-4o", messages=[ChatMessage(role="user", content="hi")])
+    events = [e async for e in ai_router._chat_stream(req.provider, "sk-test", req.model, [{"role": "user", "content": "hi"}])]
+
+    assert [e["event"] for e in events] == ["token", "token", "done"]
+    assert traced["name"] == "ai-chat"
+    assert traced["provider"] == "openai"
+    assert traced["model"] == "gpt-4o"
+    assert traced["output_data"] == {"response": "Hello"}
+
+
+@pytest.mark.anyio
 async def test_recommend_nl_strips_preamble_before_fenced_json(ai_router, monkeypatch):
     from api.schemas import AiProviderKeyIn, RecommendNlRequest
 
@@ -196,6 +242,29 @@ async def test_trace_generate_nl_happy_path(ai_router, monkeypatch):
 
     res = await ai_router.trace_generate_nl(TraceGenerateNlRequest(provider="groq", model="llama-3.3-70b", prompt="a small burst of jobs"))
     assert "j1,team-a" in res.trace_csv
+
+
+@pytest.mark.anyio
+async def test_trace_generate_nl_traces_the_call(ai_router, monkeypatch):
+    from api.schemas import AiProviderKeyIn, TraceGenerateNlRequest
+
+    ai_router.set_provider_key("groq", AiProviderKeyIn(api_key="gk-test"))
+
+    async def fake_complete_once(provider, api_key, model, messages):
+        return "job_id,team,priority,gpu_count,submit_time,duration\nj1,team-a,5,8,0,10\n"
+
+    monkeypatch.setattr(ai_router, "complete_once", fake_complete_once)
+
+    traced = {}
+    monkeypatch.setattr(ai_router.langfuse_client, "trace_ai_request", lambda **kwargs: traced.update(kwargs))
+
+    await ai_router.trace_generate_nl(TraceGenerateNlRequest(provider="groq", model="llama-3.3-70b", prompt="a small burst of jobs"))
+
+    assert traced["name"] == "ai-trace-generate-nl"
+    assert traced["provider"] == "groq"
+    assert traced["model"] == "llama-3.3-70b"
+    assert traced["input_data"] == {"prompt": "a small burst of jobs"}
+    assert "j1,team-a" in traced["output_data"]["trace_csv"]
 
 
 @pytest.mark.anyio

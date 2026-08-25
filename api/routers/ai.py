@@ -14,7 +14,7 @@ import re
 from fastapi import APIRouter, HTTPException
 from sse_starlette.sse import EventSourceResponse
 
-from api import ai_settings_db
+from api import ai_settings_db, langfuse_client
 from api.ai_providers import PROVIDERS, complete_once, list_models, stream_chat_completion
 from api.schemas import (
     AiProviderKeyIn,
@@ -148,13 +148,22 @@ async def provider_models(provider: str):
 
 
 async def _chat_stream(provider: str, api_key: str, model: str, messages: list[dict[str, str]]):
+    parts: list[str] = []
     try:
         async for delta in stream_chat_completion(provider, api_key, model, messages):
+            parts.append(delta)
             yield {"event": "token", "data": json.dumps({"delta": delta})}
     except Exception as e:
         yield {"event": "error", "data": json.dumps({"detail": str(e)})}
         return
     yield {"event": "done", "data": "{}"}
+    langfuse_client.trace_ai_request(
+        name="ai-chat",
+        provider=provider,
+        model=model,
+        input_data={"messages": messages},
+        output_data={"response": "".join(parts)},
+    )
 
 
 @router.post("/chat/stream")
@@ -195,6 +204,13 @@ async def recommend_nl(req: RecommendNlRequest):
             status_code=422, detail="The model's response couldn't be parsed as a config — try rephrasing."
         ) from e
 
+    langfuse_client.trace_ai_request(
+        name="ai-recommend-nl",
+        provider=req.provider,
+        model=req.model,
+        input_data={"prompt": req.prompt},
+        output_data={"raw_response": raw, "candidates_count": len(candidates)},
+    )
     return RecommendResponse(candidates=[RecommendationCandidateOut(**c.__dict__) for c in candidates])
 
 
@@ -217,4 +233,11 @@ async def trace_generate_nl(req: TraceGenerateNlRequest):
     except ValueError as e:
         raise HTTPException(status_code=422, detail=f"Generated trace failed validation: {e}") from e
 
+    langfuse_client.trace_ai_request(
+        name="ai-trace-generate-nl",
+        provider=req.provider,
+        model=req.model,
+        input_data={"prompt": req.prompt},
+        output_data={"trace_csv": trace_csv},
+    )
     return TraceGenerateNlResponse(trace_csv=trace_csv)

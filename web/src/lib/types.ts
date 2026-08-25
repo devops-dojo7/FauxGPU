@@ -511,6 +511,11 @@ export interface TraceGenerateNlResponse {
   trace_csv: string;
 }
 
+export interface LangfuseStatus {
+  tracing_available: boolean;
+  public_url: string;
+}
+
 export interface ModelPreset extends ModelShape {
   id: string;
   label: string;

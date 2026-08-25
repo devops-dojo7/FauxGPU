@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { deleteAiProviderKey, fetchAiProviders, setAiProviderKey } from "@/lib/api";
-import { AiProvider, AiProviderStatus } from "@/lib/types";
+import { deleteAiProviderKey, fetchAiProviders, fetchLangfuseStatus, setAiProviderKey } from "@/lib/api";
+import { AiProvider, AiProviderStatus, LangfuseStatus } from "@/lib/types";
 import { BadgePill, ButtonOutline } from "./ui";
 
 const PROVIDER_LABELS: Record<AiProvider, string> = {
@@ -20,11 +20,15 @@ export function AiSettingsPanel({ onClose }: { onClose: () => void }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [langfuse, setLangfuse] = useState<LangfuseStatus | null>(null);
 
   const refresh = () => fetchAiProviders().then(setStatuses).catch((e) => setError(e.message));
 
   useEffect(() => {
     refresh();
+    fetchLangfuseStatus()
+      .then(setLangfuse)
+      .catch(() => {});
   }, []);
 
   const save = (provider: string) => {
@@ -62,10 +66,25 @@ export function AiSettingsPanel({ onClose }: { onClose: () => void }) {
             Close
           </button>
         </div>
-        <p className="text-xs text-muted mb-5">
+        <p className={`text-xs text-muted ${langfuse?.tracing_available ? "mb-2" : "mb-5"}`}>
           Keys are stored encrypted on this server (not in your browser) and used for AI requests you trigger
           here — anyone with access to this instance can use configured keys. Bring your own key per provider.
         </p>
+
+        {langfuse?.tracing_available && (
+          <p className="text-xs text-muted mb-5">
+            Every AI chat, recommend, and trace-generate call is traced —{" "}
+            <a
+              href={langfuse.public_url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-body-strong underline decoration-hairline-strong hover:text-ink transition-colors"
+            >
+              view them in Langfuse ↗
+            </a>
+            .
+          </p>
+        )}
 
         {error && <p className="text-sm text-error mb-3">{error}</p>}
 

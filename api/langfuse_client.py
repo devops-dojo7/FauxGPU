@@ -70,3 +70,34 @@ def trace_inference_request(
         _client.flush()
     except Exception:
         pass  # best-effort; never fail a request over a tracing hiccup
+
+
+def trace_ai_request(
+    *,
+    name: str,
+    provider: str,
+    model: str,
+    input_data: dict,
+    output_data: dict,
+) -> None:
+    """Traces one call to a bring-your-own-key AI feature (chat, NL
+    recommender, NL trace generator — see api/routers/ai.py) as a single
+    Langfuse generation, so a user who wired up Langfuse can inspect the
+    real prompt/response for these AI calls the same way they already can
+    for simulated inference requests. Best-effort, same as
+    trace_inference_request above: a Langfuse outage never fails a request.
+    """
+    if _client is None:
+        return
+    try:
+        with _client.start_as_current_observation(
+            name=name,
+            as_type="generation",
+            model=model,
+            input=input_data,
+            metadata={"provider": provider},
+        ) as gen:
+            gen.update(output=output_data)
+        _client.flush()
+    except Exception:
+        pass  # best-effort; never fail a request over a tracing hiccup
