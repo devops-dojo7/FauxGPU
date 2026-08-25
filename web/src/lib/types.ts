@@ -338,6 +338,14 @@ export interface SchedulerResponse {
   gpu_utilization_pct: number;
 }
 
+export interface TraceReplayRequest {
+  trace_csv: string;
+  gpu_id: string;
+  total_gpus: number;
+  preemption_enabled: boolean;
+  horizon: number | null;
+}
+
 export interface SimulateRunRequest {
   model: ModelShape;
   model_label: string;

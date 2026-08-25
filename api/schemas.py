@@ -226,6 +226,14 @@ class SchedulerResponse(BaseModel):
     gpu_utilization_pct: float
 
 
+class TraceReplayRequest(BaseModel):
+    trace_csv: str
+    gpu_id: str
+    total_gpus: int = Field(..., gt=0)
+    preemption_enabled: bool = True
+    horizon: float | None = None
+
+
 class RunStartRequest(BaseModel):
     model: str
     gpu: str

@@ -25,6 +25,7 @@ import type {
   SchedulerRequest,
   SchedulerResponse,
   SimulateRunRequest,
+  TraceReplayRequest,
   SpeculativeDecodingRequest,
   SpeculativeDecodingResponse,
   TopologyRequest,
@@ -52,6 +53,12 @@ async function get<TRes>(path: string): Promise<TRes> {
   const res = await fetch(`${API_URL}${path}`);
   if (!res.ok) throw new Error(`Request to ${path} failed (${res.status})`);
   return res.json();
+}
+
+async function getText(path: string): Promise<string> {
+  const res = await fetch(`${API_URL}${path}`);
+  if (!res.ok) throw new Error(`Request to ${path} failed (${res.status})`);
+  return res.text();
 }
 
 export interface SSEEvent {
@@ -128,6 +135,8 @@ export const calculateRecommend = (req: RecommendRequest) =>
 export const fetchRunEconomics = (runId: string) => get<EconomicsResponse>(`/runs/${encodeURIComponent(runId)}/economics`);
 export const simulateScheduler = (req: SchedulerRequest) =>
   post<SchedulerRequest, SchedulerResponse>("/scheduler/simulate", req);
+export const replayTrace = (req: TraceReplayRequest) => post<TraceReplayRequest, SchedulerResponse>("/scheduler/replay-trace", req);
+export const fetchSampleTrace = () => getText("/scheduler/sample-trace");
 export const fetchMigGpus = () => get<MigGpu[]>("/mig/gpus");
 export const fetchMigProfiles = (gpuId: string) => get<MigProfile[]>(`/mig/profiles/${encodeURIComponent(gpuId)}`);
 export const packMigRequests = (req: MigPackRequest) => post<MigPackRequest, MigPackResponse>("/mig/pack", req);
