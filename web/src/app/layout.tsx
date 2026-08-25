@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, EB_Garamond, Geist_Mono } from "next/font/google";
+import { Inter, EB_Garamond, Geist_Mono, Archivo_Black } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 
@@ -22,6 +22,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Heavy condensed sans for the ERSATZGPU wordmark only — matches the logo's
+// blocky lockup, distinct from the EB Garamond used for editorial headings.
+const wordmark = Archivo_Black({
+  variable: "--font-wordmark",
+  weight: "400",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
   title: "ErsatzGPU",
   description: "Learn GPU VRAM, KV cache, and cluster topology without needing real hardware.",
@@ -31,7 +39,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${displaySerif.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${displaySerif.variable} ${geistMono.variable} ${wordmark.variable} h-full antialiased`}
     >
       <head>
         {/* Runs before paint so an explicit saved theme (or system preference,

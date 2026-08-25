@@ -197,9 +197,9 @@ export default function Home() {
           <div>
             <div className="flex items-center gap-3">
               <Image src="/logo.png" alt="ErsatzGPU logo" width={48} height={48} className="h-10 w-10 md:h-12 md:w-12 rounded-xl" priority />
-              <h1 className="font-display text-4xl md:text-5xl inline-block tracking-tight">
+              <h1 className="font-wordmark text-3xl md:text-4xl inline-block tracking-tight uppercase">
                 <span className="text-ink">ERSATZ</span>
-                <span style={{ color: "#38e29b" }}>GPU</span>
+                <span style={{ color: "#38e29b", textShadow: "0 0 18px rgba(56, 226, 155, 0.55)" }}>GPU</span>
               </h1>
             </div>
             <p className="text-sm text-body mt-2 max-w-2xl">

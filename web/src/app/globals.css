@@ -138,6 +138,12 @@ body {
   letter-spacing: -0.02em;
 }
 
+/* Archivo Black — the ERSATZGPU wordmark only, matches the logo lockup. */
+.font-wordmark {
+  font-family: var(--font-wordmark), "Arial Black", sans-serif;
+  letter-spacing: -0.01em;
+}
+
 select,
 select option {
   background-color: var(--color-surface-card);
