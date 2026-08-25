@@ -25,10 +25,11 @@ import { RecommenderPanel } from "@/components/RecommenderPanel";
 import { CostDashboardPanel } from "@/components/CostDashboardPanel";
 import { SchedulerPanel } from "@/components/SchedulerPanel";
 import { MigPlannerPanel } from "@/components/MigPlannerPanel";
+import { AutoscalingPanel } from "@/components/AutoscalingPanel";
 import { decodeConfig, encodeConfig } from "@/lib/shareConfig";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-type Tab = "training" | "inference" | "datacenter" | "gpu-compare" | "compare" | "playground" | "recommender" | "cost-dashboard" | "scheduler" | "mig-planner";
+type Tab = "training" | "inference" | "datacenter" | "gpu-compare" | "compare" | "playground" | "recommender" | "cost-dashboard" | "scheduler" | "mig-planner" | "autoscaling";
 
 interface SharedConfig {
   modelState: ModelPanelState;
@@ -222,6 +223,7 @@ export default function Home() {
                   ["cost-dashboard", "Cost Dashboard"],
                   ["scheduler", "Scheduler"],
                   ["mig-planner", "MIG Planner"],
+                  ["autoscaling", "Autoscaling"],
                 ] as [Tab, string][]
               ).map(([id, label]) => (
                 <button
@@ -248,7 +250,7 @@ export default function Home() {
           </div>
         </header>
 
-        {tab === "playground" || tab === "gpu-compare" || tab === "recommender" || tab === "cost-dashboard" || tab === "scheduler" || tab === "mig-planner" ? null : tab === "compare" || tab === "datacenter" ? (
+        {tab === "playground" || tab === "gpu-compare" || tab === "recommender" || tab === "cost-dashboard" || tab === "scheduler" || tab === "mig-planner" || tab === "autoscaling" ? null : tab === "compare" || tab === "datacenter" ? (
           <div className="mb-6 max-w-md">
             <GpuPicker gpus={gpus} selectedId={gpuId} onSelect={setGpuId} />
           </div>
@@ -379,6 +381,8 @@ export default function Home() {
         {tab === "scheduler" && <SchedulerPanel gpus={gpus} />}
 
         {tab === "mig-planner" && <MigPlannerPanel />}
+
+        {tab === "autoscaling" && <AutoscalingPanel gpus={gpus} />}
       </div>
     </div>
   );

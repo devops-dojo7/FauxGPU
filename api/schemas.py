@@ -365,3 +365,49 @@ class MigPackResponse(BaseModel):
     gpus_used: int
     compute_utilization_pct: float
     memory_utilization_pct: float
+
+
+class TrafficStageIn(BaseModel):
+    duration_s: float = Field(..., gt=0)
+    target_rps: float = Field(..., ge=0)
+
+
+class AutoscalingConfigIn(BaseModel):
+    min_replicas: int = Field(..., ge=1)
+    max_replicas: int = Field(..., ge=1)
+    target_utilization_pct: float = 70.0
+    eval_interval_s: float = 15.0
+    scale_down_stabilization_s: float = 300.0
+
+
+class AutoscalingRequest(BaseModel):
+    model: ModelShapeIn
+    gpu_id: str
+    precision: str = "bf16"
+    prompt_tokens: int = 2048
+    output_tokens: int = 256
+    decode_batch_size: int = 8
+    cache_hit_fraction: float = 0.0
+    utilization: float = 0.35
+    paged_attention: bool = False
+    block_size: int = 16
+    stages: list[TrafficStageIn]
+    config: AutoscalingConfigIn
+    tick_s: float = 5.0
+
+
+class AutoscalingPointOut(BaseModel):
+    t: float
+    demand_rps: float
+    replicas: int
+    capacity_rps: float
+    backlog_requests: float
+    est_queue_delay_s: float
+
+
+class AutoscalingResponse(BaseModel):
+    points: list[AutoscalingPointOut]
+    per_replica_capacity_rps: float
+    peak_replicas: int
+    peak_backlog_requests: float
+    peak_queue_delay_s: float

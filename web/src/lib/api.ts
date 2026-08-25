@@ -1,4 +1,6 @@
 import type {
+  AutoscalingRequest,
+  AutoscalingResponse,
   ChaosInjectRequest,
   CostRequest,
   CostResponse,
@@ -127,3 +129,5 @@ export const simulateScheduler = (req: SchedulerRequest) =>
 export const fetchMigGpus = () => get<MigGpu[]>("/mig/gpus");
 export const fetchMigProfiles = (gpuId: string) => get<MigProfile[]>(`/mig/profiles/${encodeURIComponent(gpuId)}`);
 export const packMigRequests = (req: MigPackRequest) => post<MigPackRequest, MigPackResponse>("/mig/pack", req);
+export const simulateAutoscaling = (req: AutoscalingRequest) =>
+  post<AutoscalingRequest, AutoscalingResponse>("/autoscaling/simulate", req);

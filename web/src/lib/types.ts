@@ -392,6 +392,52 @@ export interface MigPackResponse {
   memory_utilization_pct: number;
 }
 
+export interface TrafficStage {
+  duration_s: number;
+  target_rps: number;
+}
+
+export interface AutoscalingConfig {
+  min_replicas: number;
+  max_replicas: number;
+  target_utilization_pct: number;
+  eval_interval_s: number;
+  scale_down_stabilization_s: number;
+}
+
+export interface AutoscalingRequest {
+  model: ModelShape;
+  gpu_id: string;
+  precision: string;
+  prompt_tokens: number;
+  output_tokens: number;
+  decode_batch_size: number;
+  cache_hit_fraction: number;
+  utilization: number;
+  paged_attention: boolean;
+  block_size: number;
+  stages: TrafficStage[];
+  config: AutoscalingConfig;
+  tick_s: number;
+}
+
+export interface AutoscalingPoint {
+  t: number;
+  demand_rps: number;
+  replicas: number;
+  capacity_rps: number;
+  backlog_requests: number;
+  est_queue_delay_s: number;
+}
+
+export interface AutoscalingResponse {
+  points: AutoscalingPoint[];
+  per_replica_capacity_rps: number;
+  peak_replicas: number;
+  peak_backlog_requests: number;
+  peak_queue_delay_s: number;
+}
+
 export interface ModelPreset extends ModelShape {
   id: string;
   label: string;
