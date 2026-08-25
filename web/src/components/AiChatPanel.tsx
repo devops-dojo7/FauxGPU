@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchAiProviders, streamAiChat } from "@/lib/api";
 import { AiProvider, AiProviderStatus, ChatMessage } from "@/lib/types";
+import { useAiAssistant } from "@/lib/aiAssistantContext";
 import { Select } from "./ui";
 import { AiModelSelect } from "./AiModelSelect";
 
@@ -39,8 +40,7 @@ function SendIcon() {
 }
 
 export function AiChatPanel() {
-  const [open, setOpen] = useState(false);
-  const [wide, setWide] = useState(false);
+  const { open, setOpen, wide, setWide } = useAiAssistant();
   const [providers, setProviders] = useState<AiProviderStatus[]>([]);
   const [provider, setProvider] = useState<AiProvider | "">("");
   const [model, setModel] = useState("");
@@ -68,17 +68,6 @@ export function AiChatPanel() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
-  // Lock background scroll/interaction while the panel is a takeover, not
-  // just a floating box stacked on top of a still-live page.
-  useEffect(() => {
-    if (!open) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [open]);
-
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -86,7 +75,7 @@ export function AiChatPanel() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  }, [open, setOpen]);
 
   const configuredProviders = providers.filter((p) => p.configured);
 
@@ -132,14 +121,6 @@ export function AiChatPanel() {
       )}
 
       <div
-        onClick={() => setOpen(false)}
-        aria-hidden={!open}
-        className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-200 ${
-          open ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
-      />
-
-      <div
         className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-hairline bg-surface-card shadow-2xl transition-transform duration-200 ${
           wide ? "max-w-xl" : "max-w-sm"
         } ${open ? "translate-x-0" : "translate-x-full"}`}
@@ -151,7 +132,7 @@ export function AiChatPanel() {
           </div>
           <div className="flex items-center gap-1">
             <button
-              onClick={() => setWide((w) => !w)}
+              onClick={() => setWide(!wide)}
               aria-label={wide ? "Collapse panel" : "Expand panel"}
               title={wide ? "Collapse panel" : "Expand panel"}
               className="w-7 h-7 flex items-center justify-center rounded-md text-muted hover:text-ink hover:bg-surface-strong transition-colors"
