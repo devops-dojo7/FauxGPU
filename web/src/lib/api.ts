@@ -1,6 +1,8 @@
 import type {
+  AiProviderStatus,
   AutoscalingRequest,
   AutoscalingResponse,
+  ChatRequest,
   ChaosInjectRequest,
   CostRequest,
   CostResponse,
@@ -18,6 +20,7 @@ import type {
   InferenceStreamRequest,
   K8sAvailability,
   LaunchK8sJobResponse,
+  RecommendNlRequest,
   RecommendRequest,
   RecommendResponse,
   RunDetail,
@@ -25,6 +28,8 @@ import type {
   SchedulerRequest,
   SchedulerResponse,
   SimulateRunRequest,
+  TraceGenerateNlRequest,
+  TraceGenerateNlResponse,
   TraceReplayRequest,
   SpeculativeDecodingRequest,
   SpeculativeDecodingResponse,
@@ -59,6 +64,23 @@ async function getText(path: string): Promise<string> {
   const res = await fetch(`${API_URL}${path}`);
   if (!res.ok) throw new Error(`Request to ${path} failed (${res.status})`);
   return res.text();
+}
+
+async function put<TReq>(path: string, body: TReq): Promise<void> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(detail?.detail ?? `Request to ${path} failed (${res.status})`);
+  }
+}
+
+async function del(path: string): Promise<void> {
+  const res = await fetch(`${API_URL}${path}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Request to ${path} failed (${res.status})`);
 }
 
 export interface SSEEvent {
@@ -110,6 +132,53 @@ export async function* streamInference(req: InferenceStreamRequest, signal?: Abo
     }
   }
 }
+
+/** POST /ai/chat/stream is SSE, same "read the body by hand" reasoning and
+ * event-block-parsing loop as streamInference above. */
+export async function* streamAiChat(req: ChatRequest, signal?: AbortSignal): AsyncGenerator<SSEEvent> {
+  const res = await fetch(`${API_URL}/ai/chat/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+    signal,
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(`Request to /ai/chat/stream failed (${res.status})`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    buffer = buffer.replace(/\r\n/g, "\n");
+
+    let sepIndex: number;
+    while ((sepIndex = buffer.indexOf("\n\n")) !== -1) {
+      const block = buffer.slice(0, sepIndex);
+      buffer = buffer.slice(sepIndex + 2);
+
+      let eventName = "message";
+      let dataLine = "";
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataLine += line.slice(5).trim();
+      }
+      if (dataLine) yield { event: eventName, data: JSON.parse(dataLine) };
+    }
+  }
+}
+
+export const fetchAiProviders = () => get<AiProviderStatus[]>("/ai/providers");
+export const setAiProviderKey = (provider: string, apiKey: string) =>
+  put<{ api_key: string }>(`/ai/providers/${encodeURIComponent(provider)}/key`, { api_key: apiKey });
+export const deleteAiProviderKey = (provider: string) => del(`/ai/providers/${encodeURIComponent(provider)}/key`);
+export const recommendNl = (req: RecommendNlRequest) => post<RecommendNlRequest, RecommendResponse>("/ai/recommend/nl", req);
+export const generateTraceNl = (req: TraceGenerateNlRequest) =>
+  post<TraceGenerateNlRequest, TraceGenerateNlResponse>("/ai/trace/generate", req);
 
 export const fetchGpus = () => get<GpuSpec[]>("/gpus");
 export const fetchFabrics = () => get<Fabric[]>("/gpus/fabrics");

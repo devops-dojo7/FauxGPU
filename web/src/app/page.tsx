@@ -30,6 +30,7 @@ import { NetworkContentionPanel } from "@/components/NetworkContentionPanel";
 import { TraceReplayPanel } from "@/components/TraceReplayPanel";
 import { decodeConfig, encodeConfig } from "@/lib/shareConfig";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AiSettingsPanel } from "@/components/AiSettingsPanel";
 
 type Tab = "training" | "inference" | "datacenter" | "gpu-compare" | "compare" | "playground" | "recommender" | "cost-dashboard" | "scheduler" | "mig-planner" | "autoscaling" | "network-contention" | "trace-replay";
 
@@ -47,6 +48,7 @@ export default function Home() {
   const [fabrics, setFabrics] = useState<Fabric[]>([]);
   const [gpuId, setGpuId] = useState<string>("h100-sxm");
   const [apiError, setApiError] = useState<string | null>(null);
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
 
   const [modelState, setModelState] = useState<ModelPanelState>({
     presetId: MODEL_PRESETS[0].id,
@@ -252,10 +254,18 @@ export default function Home() {
               >
                 {shareCopied ? "Link copied!" : "Share this config"}
               </button>
+              <button
+                onClick={() => setAiSettingsOpen(true)}
+                className="px-4 py-1.5 rounded-full text-sm font-medium border border-hairline-strong text-ink hover:bg-surface-strong transition-colors"
+              >
+                AI settings
+              </button>
               <ThemeToggle />
             </div>
           </div>
         </header>
+
+        {aiSettingsOpen && <AiSettingsPanel onClose={() => setAiSettingsOpen(false)} />}
 
         {tab === "playground" || tab === "gpu-compare" || tab === "recommender" || tab === "cost-dashboard" || tab === "scheduler" || tab === "mig-planner" || tab === "autoscaling" || tab === "network-contention" || tab === "trace-replay" ? null : tab === "compare" || tab === "datacenter" ? (
           <div className="mb-6 max-w-md">

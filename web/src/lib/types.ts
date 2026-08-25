@@ -475,6 +475,42 @@ export interface NetworkContentionResponse {
   jobs: NetworkJobResult[];
 }
 
+// --- Bring-your-own-key AI features ---
+
+export type AiProvider = "anthropic" | "openai" | "deepseek" | "kimi" | "groq" | "nvidia_nim" | "openrouter";
+
+export interface AiProviderStatus {
+  provider: AiProvider;
+  configured: boolean;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatRequest {
+  provider: AiProvider;
+  model: string;
+  messages: ChatMessage[];
+}
+
+export interface RecommendNlRequest {
+  provider: AiProvider;
+  model: string;
+  prompt: string;
+}
+
+export interface TraceGenerateNlRequest {
+  provider: AiProvider;
+  model: string;
+  prompt: string;
+}
+
+export interface TraceGenerateNlResponse {
+  trace_csv: string;
+}
+
 export interface ModelPreset extends ModelShape {
   id: string;
   label: string;

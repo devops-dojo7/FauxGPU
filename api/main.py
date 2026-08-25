@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api import grafana_push, langfuse_client
 from api.metrics import render_prometheus_metrics
-from api.routers import autoscaling, calculate, gpus, inference_stream, mig, network, runs, scheduler, topology
+from api.routers import ai, autoscaling, calculate, gpus, inference_stream, mig, network, runs, scheduler, topology
 from api.runs_store import store
 
 PUSH_INTERVAL_S = 2  # short enough that live runs visibly pulse between compute/comm phases on a dashboard
@@ -56,6 +56,7 @@ app.include_router(scheduler.router)
 app.include_router(mig.router)
 app.include_router(autoscaling.router)
 app.include_router(network.router)
+app.include_router(ai.router)
 
 
 @app.get("/health")

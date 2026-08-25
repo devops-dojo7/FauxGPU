@@ -1,12 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { fetchSampleTrace, replayTrace } from "@/lib/api";
-import { SchedulerResponse } from "@/lib/types";
+import { fetchAiProviders, fetchSampleTrace, generateTraceNl, replayTrace } from "@/lib/api";
+import { AiProvider, AiProviderStatus, SchedulerResponse } from "@/lib/types";
 import { Card, Field, NumberInput, Select, Stat, Toggle } from "./ui";
 import { GanttChart, GanttRow } from "./GanttChart";
 
 const TEAM_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6", "#14b8a6"];
+
+const MODEL_PLACEHOLDERS: Record<AiProvider, string> = {
+  anthropic: "claude-sonnet-4-5-20250929",
+  openai: "gpt-4o",
+  deepseek: "deepseek-chat",
+  kimi: "moonshot-v1-8k",
+  groq: "llama-3.3-70b-versatile",
+  nvidia_nim: "meta/llama-3.1-70b-instruct",
+  openrouter: "anthropic/claude-3.5-sonnet",
+};
 
 export function TraceReplayPanel({ gpus }: { gpus: { id: string; name: string }[] }) {
   const [traceCsv, setTraceCsv] = useState("");
@@ -18,11 +28,38 @@ export function TraceReplayPanel({ gpus }: { gpus: { id: string; name: string }[
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [aiProviders, setAiProviders] = useState<AiProviderStatus[]>([]);
+  const [nlProvider, setNlProvider] = useState<AiProvider | "">("");
+  const [nlModel, setNlModel] = useState("");
+  const [nlPrompt, setNlPrompt] = useState("");
+  const [nlLoading, setNlLoading] = useState(false);
+  const [nlError, setNlError] = useState<string | null>(null);
+
   useEffect(() => {
     fetchSampleTrace()
       .then(setTraceCsv)
       .catch((e) => setError(e.message));
+    fetchAiProviders().then((all) => {
+      setAiProviders(all);
+      const configured = all.find((p) => p.configured);
+      if (configured) {
+        setNlProvider(configured.provider);
+        setNlModel(MODEL_PLACEHOLDERS[configured.provider]);
+      }
+    });
   }, []);
+
+  const configuredAiProviders = aiProviders.filter((p) => p.configured);
+
+  const generateNl = () => {
+    if (!nlProvider || !nlModel.trim() || !nlPrompt.trim()) return;
+    setNlLoading(true);
+    setNlError(null);
+    generateTraceNl({ provider: nlProvider, model: nlModel.trim(), prompt: nlPrompt.trim() })
+      .then((res) => setTraceCsv(res.trace_csv))
+      .catch((e) => setNlError(e.message))
+      .finally(() => setNlLoading(false));
+  };
 
   const runReplay = () => {
     setLoading(true);
@@ -86,6 +123,47 @@ export function TraceReplayPanel({ gpus }: { gpus: { id: string; name: string }[
           </div>
         </div>
       </Card>
+
+      {configuredAiProviders.length > 0 && (
+        <Card title="Describe your workload">
+          <p className="text-xs text-muted max-w-2xl mb-4">
+            Describe a workload in plain English and an AI provider generates a trace in the CSV format below —
+            it&apos;s validated by the same parser as any pasted trace before it&apos;s used.
+          </p>
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="w-full md:w-40">
+              <Select
+                value={nlProvider}
+                onChange={(v) => {
+                  setNlProvider(v as AiProvider);
+                  setNlModel(MODEL_PLACEHOLDERS[v as AiProvider]);
+                }}
+              >
+                {configuredAiProviders.map((p) => (
+                  <option key={p.provider} value={p.provider}>
+                    {p.provider}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <input
+              value={nlPrompt}
+              onChange={(e) => setNlPrompt(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && generateNl()}
+              placeholder="e.g. a bursty afternoon of small jobs from three teams competing for a 32-GPU pool"
+              className="min-w-0 flex-1 rounded-md border border-hairline-strong bg-surface-card px-3 py-2 text-sm text-ink outline-none focus:border-ink focus:border-2"
+            />
+            <button
+              onClick={generateNl}
+              disabled={nlLoading || !nlPrompt.trim()}
+              className="inline-flex items-center justify-center rounded-full bg-primary text-on-primary text-sm font-medium px-5 py-2 transition-colors hover:bg-primary-active disabled:opacity-40"
+            >
+              {nlLoading ? "Generating…" : "Generate"}
+            </button>
+          </div>
+          {nlError && <p className="text-sm text-error mt-2">{nlError}</p>}
+        </Card>
+      )}
 
       <Card title="Trace (CSV)">
         <textarea

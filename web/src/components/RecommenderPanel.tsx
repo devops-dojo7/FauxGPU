@@ -1,10 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { calculateRecommend } from "@/lib/api";
+import { calculateRecommend, fetchAiProviders, recommendNl } from "@/lib/api";
 import { formatCompact, formatUsd } from "@/lib/format";
-import { MODEL_PRESETS, RecommendationCandidate } from "@/lib/types";
+import { AiProvider, AiProviderStatus, MODEL_PRESETS, RecommendationCandidate } from "@/lib/types";
 import { Card, Field, NumberInput, Select, Toggle } from "./ui";
+
+const MODEL_PLACEHOLDERS: Record<AiProvider, string> = {
+  anthropic: "claude-sonnet-4-5-20250929",
+  openai: "gpt-4o",
+  deepseek: "deepseek-chat",
+  kimi: "moonshot-v1-8k",
+  groq: "llama-3.3-70b-versatile",
+  nvidia_nim: "meta/llama-3.1-70b-instruct",
+  openrouter: "anthropic/claude-3.5-sonnet",
+};
 
 export function RecommenderPanel() {
   const [presetId, setPresetId] = useState(MODEL_PRESETS.find((p) => p.id === "llama2-7b")?.id ?? MODEL_PRESETS[0].id);
@@ -18,6 +28,36 @@ export function RecommenderPanel() {
   const [candidates, setCandidates] = useState<RecommendationCandidate[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [aiProviders, setAiProviders] = useState<AiProviderStatus[]>([]);
+  const [nlProvider, setNlProvider] = useState<AiProvider | "">("");
+  const [nlModel, setNlModel] = useState("");
+  const [nlPrompt, setNlPrompt] = useState("");
+  const [nlLoading, setNlLoading] = useState(false);
+  const [nlError, setNlError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchAiProviders().then((all) => {
+      setAiProviders(all);
+      const configured = all.find((p) => p.configured);
+      if (configured) {
+        setNlProvider(configured.provider);
+        setNlModel(MODEL_PLACEHOLDERS[configured.provider]);
+      }
+    });
+  }, []);
+
+  const configuredAiProviders = aiProviders.filter((p) => p.configured);
+
+  const askNl = () => {
+    if (!nlProvider || !nlModel.trim() || !nlPrompt.trim()) return;
+    setNlLoading(true);
+    setNlError(null);
+    recommendNl({ provider: nlProvider, model: nlModel.trim(), prompt: nlPrompt.trim() })
+      .then((res) => setCandidates(res.candidates))
+      .catch((e) => setNlError(e.message))
+      .finally(() => setNlLoading(false));
+  };
 
   const preset = MODEL_PRESETS.find((p) => p.id === presetId) ?? MODEL_PRESETS[0];
 
@@ -47,6 +87,47 @@ export function RecommenderPanel() {
 
   return (
     <div className="flex flex-col gap-6">
+      {configuredAiProviders.length > 0 && (
+        <Card title="Ask in plain English">
+          <p className="text-xs text-muted max-w-2xl mb-4">
+            Describe the training run you want, and an AI provider turns it into the structured search below —
+            the ranked results are still produced by the same deterministic engine, not the model.
+          </p>
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="w-full md:w-40">
+              <Select
+                value={nlProvider}
+                onChange={(v) => {
+                  setNlProvider(v as AiProvider);
+                  setNlModel(MODEL_PLACEHOLDERS[v as AiProvider]);
+                }}
+              >
+                {configuredAiProviders.map((p) => (
+                  <option key={p.provider} value={p.provider}>
+                    {p.provider}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <input
+              value={nlPrompt}
+              onChange={(e) => setNlPrompt(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && askNl()}
+              placeholder="e.g. I want to fine-tune a 70B Llama model as cheaply as possible"
+              className="min-w-0 flex-1 rounded-md border border-hairline-strong bg-surface-card px-3 py-2 text-sm text-ink outline-none focus:border-ink focus:border-2"
+            />
+            <button
+              onClick={askNl}
+              disabled={nlLoading || !nlPrompt.trim()}
+              className="inline-flex items-center justify-center rounded-full bg-primary text-on-primary text-sm font-medium px-5 py-2 transition-colors hover:bg-primary-active disabled:opacity-40"
+            >
+              {nlLoading ? "Asking…" : "Ask"}
+            </button>
+          </div>
+          {nlError && <p className="text-sm text-error mt-2">{nlError}</p>}
+        </Card>
+      )}
+
       <Card title="What-if recommender">
         <p className="text-xs text-muted max-w-2xl mb-4">
           Pick a model and a target training run, and this searches GPU type x GPU count x tensor/pipeline-parallel

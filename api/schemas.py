@@ -448,3 +448,42 @@ class NetworkContentionResponse(BaseModel):
     fabric_bandwidth_gbps: float
     total_gpus_sharing_fabric: int
     jobs: list[NetworkJobResultOut]
+
+
+# --- Bring-your-own-key AI features (chat assistant, NL recommender, NL trace generator) ---
+
+
+class AiProviderStatus(BaseModel):
+    provider: str
+    configured: bool
+
+
+class AiProviderKeyIn(BaseModel):
+    api_key: str
+
+
+class ChatMessage(BaseModel):
+    role: str = Field(..., description="user | assistant")
+    content: str
+
+
+class ChatRequest(BaseModel):
+    provider: str
+    model: str
+    messages: list[ChatMessage]
+
+
+class RecommendNlRequest(BaseModel):
+    provider: str
+    model: str
+    prompt: str
+
+
+class TraceGenerateNlRequest(BaseModel):
+    provider: str
+    model: str
+    prompt: str
+
+
+class TraceGenerateNlResponse(BaseModel):
+    trace_csv: str

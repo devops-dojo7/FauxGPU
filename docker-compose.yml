@@ -31,6 +31,9 @@ services:
       LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      AI_SETTINGS_SECRET: ${AI_SETTINGS_SECRET:-}
+    volumes:
+      - ai_settings_data:/data
 
   web:
     build:
@@ -84,3 +87,6 @@ services:
       - ./k3s/observability/grafana-provisioning/dashboards/generated:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
+
+volumes:
+  ai_settings_data:

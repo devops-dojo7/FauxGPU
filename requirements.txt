@@ -7,3 +7,5 @@ requests
 prometheus-remote-writer
 sse-starlette
 langfuse
+httpx
+cryptography

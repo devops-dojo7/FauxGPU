@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, EB_Garamond, Geist_Mono, Archivo_Black } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import { AiChatPanel } from "@/components/AiChatPanel";
 
 // Inter carries body/nav/buttons/captions; EB Garamond at weight 300 is the
 // open-source substitute for ElevenLabs' licensed Waldenburg Light display
@@ -57,6 +58,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-full flex flex-col">
         <div className="flex-1 flex flex-col">{children}</div>
+        <AiChatPanel />
         <footer className="border-t border-hairline">
           <div className="max-w-7xl mx-auto px-6 md:px-10 py-6 flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
             <span>
