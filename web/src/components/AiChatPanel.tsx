@@ -68,6 +68,26 @@ export function AiChatPanel() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
+  // Lock background scroll/interaction while the panel is a takeover, not
+  // just a floating box stacked on top of a still-live page.
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
   const configuredProviders = providers.filter((p) => p.configured);
 
   const send = async () => {
@@ -110,6 +130,14 @@ export function AiChatPanel() {
           Ask Assistant
         </button>
       )}
+
+      <div
+        onClick={() => setOpen(false)}
+        aria-hidden={!open}
+        className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-200 ${
+          open ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      />
 
       <div
         className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-hairline bg-surface-card shadow-2xl transition-transform duration-200 ${
