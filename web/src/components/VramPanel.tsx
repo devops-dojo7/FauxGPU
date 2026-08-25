@@ -66,10 +66,17 @@ export function VramPanel({
               {formatGb(perGpu)} {capacityPerGpu > 0 && <span className="text-sm font-normal">/ {capacityPerGpu} GB</span>}
             </span>
           </div>
+          <p className="mt-1 text-xs text-muted-soft">
+            Assumes an ideal, perfectly even split across your {numGpus} selected GPU{numGpus > 1 ? "s" : ""} — it
+            isn&apos;t tied to the Tensor/Pipeline parallel degree set below, which is what actually determines how the
+            model is sharded in a real run.
+          </p>
           {overflow && (
-            <p className="mt-1 text-xs text-error">
+            <p className="mt-2 text-xs text-error">
               Doesn&apos;t fit in one {gpu?.name}. You&apos;d need more GPUs, a smaller batch/seq length, precision
-              reduction, or activation checkpointing.
+              reduction, or activation checkpointing. To try more/larger GPUs, head to the{" "}
+              <span className="font-medium">Datacenter</span> tab — it lets you scale up the cluster size and GPU
+              type and see how a model like this actually splits across a bigger fleet.
             </p>
           )}
           {totalCapacity > 0 && (
