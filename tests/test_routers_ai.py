@@ -78,6 +78,32 @@ async def test_recommend_nl_happy_path(ai_router, monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_recommend_nl_strips_preamble_before_fenced_json(ai_router, monkeypatch):
+    from api.schemas import AiProviderKeyIn, RecommendNlRequest
+
+    ai_router.set_provider_key("openai", AiProviderKeyIn(api_key="sk-test"))
+
+    async def fake_complete_once(provider, api_key, model, messages):
+        body = json.dumps(
+            {
+                "model": MODEL_JSON,
+                "precision": "bf16",
+                "tokens_per_step": 32768,
+                "total_training_tokens": 1e11,
+                "objective": "cost",
+                "batch_size": 1,
+                "seq_len": 2048,
+            }
+        )
+        return f"Sure, here's a config for that:\n\n```json\n{body}\n```\n"
+
+    monkeypatch.setattr(ai_router, "complete_once", fake_complete_once)
+
+    res = await ai_router.recommend_nl(RecommendNlRequest(provider="openai", model="gpt-4o", prompt="cheap 7B training run"))
+    assert len(res.candidates) > 0
+
+
+@pytest.mark.anyio
 async def test_recommend_nl_422_on_malformed_model_output(ai_router, monkeypatch):
     from api.schemas import AiProviderKeyIn, RecommendNlRequest
 
@@ -141,6 +167,23 @@ async def test_provider_models_502_on_provider_failure(ai_router, monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_trace_generate_nl_inserts_missing_header(ai_router, monkeypatch):
+    from api.schemas import AiProviderKeyIn, TraceGenerateNlRequest
+
+    ai_router.set_provider_key("groq", AiProviderKeyIn(api_key="gk-test"))
+
+    async def fake_complete_once(provider, api_key, model, messages):
+        # No header row at all — observed from gpt-4o-mini in the wild.
+        return "job-1,team-a,2,2,0,300\njob-2,team-b,5,1,30,600"
+
+    monkeypatch.setattr(ai_router, "complete_once", fake_complete_once)
+
+    res = await ai_router.trace_generate_nl(TraceGenerateNlRequest(provider="groq", model="gpt-4o-mini", prompt="a few small jobs"))
+    assert res.trace_csv.startswith("job_id,team,priority,gpu_count,submit_time,duration\n")
+    assert "job-1,team-a,2,2,0,300" in res.trace_csv
+
+
+@pytest.mark.anyio
 async def test_trace_generate_nl_happy_path(ai_router, monkeypatch):
     from api.schemas import AiProviderKeyIn, TraceGenerateNlRequest
 
@@ -153,6 +196,28 @@ async def test_trace_generate_nl_happy_path(ai_router, monkeypatch):
 
     res = await ai_router.trace_generate_nl(TraceGenerateNlRequest(provider="groq", model="llama-3.3-70b", prompt="a small burst of jobs"))
     assert "j1,team-a" in res.trace_csv
+
+
+@pytest.mark.anyio
+async def test_trace_generate_nl_strips_preamble_before_fenced_csv(ai_router, monkeypatch):
+    from api.schemas import AiProviderKeyIn, TraceGenerateNlRequest
+
+    ai_router.set_provider_key("groq", AiProviderKeyIn(api_key="gk-test"))
+
+    async def fake_complete_once(provider, api_key, model, messages):
+        return (
+            "Here's a trace based on your request:\n\n"
+            "```csv\n"
+            "job_id,team,priority,gpu_count,submit_time,duration\n"
+            "j1,team-a,5,8,0,10\n"
+            "```\n"
+        )
+
+    monkeypatch.setattr(ai_router, "complete_once", fake_complete_once)
+
+    res = await ai_router.trace_generate_nl(TraceGenerateNlRequest(provider="groq", model="llama-3.3-70b", prompt="a small burst of jobs"))
+    assert "job_id,team,priority,gpu_count,submit_time,duration" in res.trace_csv
+    assert "Here's a trace" not in res.trace_csv
 
 
 @pytest.mark.anyio

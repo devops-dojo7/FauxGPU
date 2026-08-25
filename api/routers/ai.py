@@ -9,6 +9,7 @@ engine.trace_replay code paths expect, then those produce the real answer.
 from __future__ import annotations
 
 import json
+import re
 
 from fastapi import APIRouter, HTTPException
 from sse_starlette.sse import EventSourceResponse
@@ -53,27 +54,51 @@ _RECOMMEND_NL_SYSTEM_PROMPT = (
     "its publicly known architecture. Pick sensible defaults for anything unspecified."
 )
 
+_TRACE_CSV_HEADER = "job_id,team,priority,gpu_count,submit_time,duration"
+
 _TRACE_NL_SYSTEM_PROMPT = (
-    "Generate a job-queue trace as CSV with ONLY these columns, no markdown fences, no prose: "
-    "job_id,team,priority,gpu_count,submit_time,duration\n"
-    "priority is an integer (higher = more important), gpu_count is an integer, submit_time and "
-    "duration are in seconds (floats ok). Example rows:\n"
+    "Generate a job-queue trace as CSV. Output ONLY the CSV, no markdown fences, no prose, no "
+    "explanation before or after it.\n"
+    f"The FIRST line of your output must be exactly this header, unchanged: {_TRACE_CSV_HEADER}\n"
+    "priority is an integer (higher = more important). gpu_count is an integer. submit_time and "
+    "duration are PLAIN NUMBERS OF SECONDS elapsed since the start of the trace (e.g. 0, 120, "
+    "3600.5) — never calendar dates or ISO 8601 timestamps. Example (including the required "
+    "header line):\n"
+    f"{_TRACE_CSV_HEADER}\n"
     "job-1,team-a,5,8,0,3600\n"
     "job-2,team-b,3,4,120,1800\n"
     "Generate a trace matching the user's description, with a realistic mix of job sizes and "
-    "arrival times."
+    "arrival times, always starting with the header line above."
 )
 
 
+_CODE_FENCE_RE = re.compile(r"```(?:\w+)?\n(.*?)```", re.DOTALL)
+
+
 def _strip_code_fence(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        lines = lines[1:] if lines[0].startswith("```") else lines
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    return text
+    """Extract a fenced code block wherever it appears in the response, not
+    just when the whole response starts with one — models routinely add a
+    preamble ("Here's a trace based on your request:\n\n```csv\n...") before
+    the fence, and without this the preamble itself becomes the first line
+    the CSV/JSON parser sees."""
+    match = _CODE_FENCE_RE.search(text)
+    if match:
+        return match.group(1).strip()
+    return text.strip()
+
+
+def _ensure_trace_header(trace_csv: str) -> str:
+    """Despite being told to, the model sometimes skips the header row and
+    goes straight to data (observed with gpt-4o-mini). Detect that case —
+    first line isn't the header but does have the right column count — and
+    prepend the canonical header rather than failing a trace that's
+    otherwise perfectly usable."""
+    first_line = trace_csv.split("\n", 1)[0].strip()
+    if first_line.replace(" ", "") == _TRACE_CSV_HEADER.replace(" ", ""):
+        return trace_csv
+    if len(first_line.split(",")) == len(_TRACE_CSV_HEADER.split(",")):
+        return f"{_TRACE_CSV_HEADER}\n{trace_csv}"
+    return trace_csv
 
 
 def _require_key(provider: str) -> str:
@@ -186,6 +211,7 @@ async def trace_generate_nl(req: TraceGenerateNlRequest):
         raise HTTPException(status_code=502, detail=f"Provider call failed: {e}") from e
 
     trace_csv = _strip_code_fence(raw)
+    trace_csv = _ensure_trace_header(trace_csv)
     try:
         parse_trace_csv(trace_csv)
     except ValueError as e:
