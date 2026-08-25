@@ -59,10 +59,15 @@ def push_run_metrics() -> int:
     for run in store.list():
         meta = run.meta or {}
         gpu_id = str(meta.get("gpu", ""))
+        try:
+            gpu = get_gpu(gpu_id)
+        except ValueError:
+            gpu = None
         labels = {
             "run_id": run.run_id,
             "model": str(meta.get("model", "unknown")),
             "gpu": gpu_id,
+            "gpu_name": gpu.name if gpu else "unknown",
             "topology": str(meta.get("topology", "unknown")),
         }
         items.append(
@@ -78,12 +83,9 @@ def push_run_metrics() -> int:
             items.append(
                 {"metric": {"__name__": "simgpu_run_tokens_seen", **labels}, "values": [latest["tokens_seen"]], "timestamps": [now]}
             )
-        try:
-            gpu = get_gpu(gpu_id)
+        if gpu is not None:
             power, _ = instantaneous_power_watts(run, gpu, utilization=0.35)
             items.append({"metric": {"__name__": "simgpu_run_power_watts", **labels}, "values": [power], "timestamps": [now]})
-        except ValueError:
-            pass  # unknown gpu id, skip the power gauge for this run
 
     items.extend(dcgm_metric_items(store.list()))
 

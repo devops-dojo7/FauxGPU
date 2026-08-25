@@ -27,7 +27,10 @@ def test_render_includes_running_run_with_power(monkeypatch):
     monkeypatch.setattr(metrics_module, "store", test_store)
 
     text = render_prometheus_metrics()
-    assert 'simgpu_run_status{run_id="run-1",model="llama2-7b",gpu="h100-sxm",topology="nvlink_node"} 1' in text
+    assert (
+        'simgpu_run_status{run_id="run-1",model="llama2-7b",gpu="h100-sxm",'
+        'gpu_name="H100 SXM5 80GB",topology="nvlink_node"} 1'
+    ) in text
     assert "simgpu_run_power_watts{" in text
     assert "simgpu_run_step{" in text and "} 1" in text
 

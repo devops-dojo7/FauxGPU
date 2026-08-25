@@ -36,7 +36,15 @@ def render_prometheus_metrics() -> str:
         model = _escape(str(meta.get("model", "unknown")))
         gpu_id = str(meta.get("gpu", "unknown"))
         topology = _escape(str(meta.get("topology", "unknown")))
-        labels = f'run_id="{_escape(run.run_id)}",model="{model}",gpu="{_escape(gpu_id)}",topology="{topology}"'
+        try:
+            gpu = get_gpu(gpu_id)
+        except ValueError:
+            gpu = None
+        gpu_name = _escape(gpu.name) if gpu else "unknown"
+        labels = (
+            f'run_id="{_escape(run.run_id)}",model="{model}",gpu="{_escape(gpu_id)}",'
+            f'gpu_name="{gpu_name}",topology="{topology}"'
+        )
 
         lines.append(f"simgpu_run_status{{{labels}}} {1 if run.status == 'running' else 0}")
 
@@ -47,11 +55,8 @@ def render_prometheus_metrics() -> str:
         if "total_steps" in meta:
             lines.append(f"simgpu_run_total_steps{{{labels}}} {meta['total_steps']}")
 
-        try:
-            gpu = get_gpu(gpu_id)
+        if gpu is not None:
             power, _ = instantaneous_power_watts(run, gpu, utilization=0.35)
             lines.append(f"simgpu_run_power_watts{{{labels}}} {power:.2f}")
-        except ValueError:
-            pass  # unknown gpu id, skip the power gauge for this run
 
     return "\n".join(lines) + "\n" + render_dcgm_prometheus_text(store.list())

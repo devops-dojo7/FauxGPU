@@ -33,7 +33,7 @@
         "targets": [
           {
             "expr": "simgpu_run_power_watts",
-            "legendFormat": "{{run_id}} ({{model}} on {{gpu}})",
+            "legendFormat": "{{run_id}} ({{model}} on {{gpu_name}})",
             "refId": "A",
             "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" }
           }
@@ -69,7 +69,7 @@
         "targets": [
           {
             "expr": "simgpu_run_status",
-            "legendFormat": "{{run_id}} ({{model}} on {{gpu}}, {{topology}})",
+            "legendFormat": "{{run_id}} ({{model}} on {{gpu_name}}, {{topology}})",
             "refId": "A",
             "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" }
           }
@@ -116,6 +116,40 @@
             "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" }
           }
         ]
+      },
+      {
+        "id": 6,
+        "type": "table",
+        "title": "Active GPU / Runs",
+        "description": "Which GPU model each tracked run is using right now.",
+        "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+        "gridPos": { "h": 6, "w": 24, "x": 0, "y": 18 },
+        "targets": [
+          {
+            "expr": "simgpu_run_status",
+            "format": "table",
+            "instant": true,
+            "refId": "A",
+            "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" }
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": { "Time": true, "__name__": true },
+              "renameByName": {
+                "run_id": "Run",
+                "model": "Model",
+                "gpu": "GPU ID",
+                "gpu_name": "GPU",
+                "topology": "Topology",
+                "Value": "Running (1=yes)"
+              }
+            }
+          }
+        ],
+        "fieldConfig": { "defaults": {}, "overrides": [] }
       }
     ]
   },
