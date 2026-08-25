@@ -66,6 +66,39 @@ async def test_complete_once_joins_deltas(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_list_models_returns_sorted_ids(monkeypatch):
+    def handler(request):
+        assert request.headers["authorization"] == "Bearer sk-test"
+        return httpx.Response(200, json={"data": [{"id": "gpt-4o"}, {"id": "gpt-4o-mini"}, {"id": "gpt-3.5-turbo"}]})
+
+    _patch_client(monkeypatch, handler)
+    models = await ai_providers.list_models("openai", "sk-test")
+    assert models == ["gpt-3.5-turbo", "gpt-4o", "gpt-4o-mini"]
+
+
+@pytest.mark.anyio
+async def test_list_models_anthropic_uses_x_api_key_header(monkeypatch):
+    def handler(request):
+        assert request.headers["x-api-key"] == "sk-ant-test"
+        return httpx.Response(200, json={"data": [{"id": "claude-sonnet-4-5"}]})
+
+    _patch_client(monkeypatch, handler)
+    models = await ai_providers.list_models("anthropic", "sk-ant-test")
+    assert models == ["claude-sonnet-4-5"]
+
+
+@pytest.mark.anyio
+async def test_list_models_raises_with_key_redacted_on_http_error(monkeypatch):
+    def handler(request):
+        return httpx.Response(401, content=b"invalid key sk-test")
+
+    _patch_client(monkeypatch, handler)
+    with pytest.raises(RuntimeError) as exc_info:
+        await ai_providers.list_models("openai", "sk-test")
+    assert "sk-test" not in str(exc_info.value)
+
+
+@pytest.mark.anyio
 async def test_stream_raises_with_key_redacted_on_http_error(monkeypatch):
     def handler(request):
         return httpx.Response(401, content=b"invalid key sk-test")

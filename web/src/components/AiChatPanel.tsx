@@ -4,16 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { fetchAiProviders, streamAiChat } from "@/lib/api";
 import { AiProvider, AiProviderStatus, ChatMessage } from "@/lib/types";
 import { Select } from "./ui";
-
-const MODEL_PLACEHOLDERS: Record<AiProvider, string> = {
-  anthropic: "claude-sonnet-4-5-20250929",
-  openai: "gpt-4o",
-  deepseek: "deepseek-chat",
-  kimi: "moonshot-v1-8k",
-  groq: "llama-3.3-70b-versatile",
-  nvidia_nim: "meta/llama-3.1-70b-instruct",
-  openrouter: "anthropic/claude-3.5-sonnet",
-};
+import { AiModelSelect } from "./AiModelSelect";
 
 export function AiChatPanel() {
   const [open, setOpen] = useState(false);
@@ -34,7 +25,6 @@ export function AiChatPanel() {
         const configured = all.find((p) => p.configured);
         if (configured && !provider) {
           setProvider(configured.provider);
-          setModel(MODEL_PLACEHOLDERS[configured.provider]);
         }
       })
       .catch((e) => setError(e.message));
@@ -95,13 +85,7 @@ export function AiChatPanel() {
             ) : (
               <div className="flex gap-2">
                 <div className="w-32">
-                  <Select
-                    value={provider}
-                    onChange={(v) => {
-                      setProvider(v as AiProvider);
-                      setModel(MODEL_PLACEHOLDERS[v as AiProvider]);
-                    }}
-                  >
+                  <Select value={provider} onChange={(v) => setProvider(v as AiProvider)}>
                     <option value="" disabled>
                       Provider
                     </option>
@@ -112,12 +96,9 @@ export function AiChatPanel() {
                     ))}
                   </Select>
                 </div>
-                <input
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  placeholder="model id"
-                  className="min-w-0 flex-1 rounded-md border border-hairline-strong bg-surface-card px-3 py-2 text-xs text-ink outline-none focus:border-ink focus:border-2"
-                />
+                <div className="min-w-0 flex-1">
+                  <AiModelSelect provider={provider} model={model} onModelChange={setModel} />
+                </div>
               </div>
             )}
           </div>

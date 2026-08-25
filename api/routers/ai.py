@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException
 from sse_starlette.sse import EventSourceResponse
 
 from api import ai_settings_db
-from api.ai_providers import PROVIDERS, complete_once, stream_chat_completion
+from api.ai_providers import PROVIDERS, complete_once, list_models, stream_chat_completion
 from api.schemas import (
     AiProviderKeyIn,
     AiProviderStatus,
@@ -111,6 +111,15 @@ def delete_provider_key(provider: str):
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider!r}. Known: {list(PROVIDERS)}")
     ai_settings_db.delete_key(provider)
     return {"ok": True}
+
+
+@router.get("/providers/{provider}/models", response_model=list[str])
+async def provider_models(provider: str):
+    api_key = _require_key(provider)
+    try:
+        return await list_models(provider, api_key)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Couldn't list models: {e}") from e
 
 
 async def _chat_stream(provider: str, api_key: str, model: str, messages: list[dict[str, str]]):

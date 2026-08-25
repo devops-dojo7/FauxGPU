@@ -173,6 +173,7 @@ export async function* streamAiChat(req: ChatRequest, signal?: AbortSignal): Asy
 }
 
 export const fetchAiProviders = () => get<AiProviderStatus[]>("/ai/providers");
+export const fetchAiModels = (provider: string) => get<string[]>(`/ai/providers/${encodeURIComponent(provider)}/models`);
 export const setAiProviderKey = (provider: string, apiKey: string) =>
   put<{ api_key: string }>(`/ai/providers/${encodeURIComponent(provider)}/key`, { api_key: apiKey });
 export const deleteAiProviderKey = (provider: string) => del(`/ai/providers/${encodeURIComponent(provider)}/key`);

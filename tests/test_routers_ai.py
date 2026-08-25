@@ -103,6 +103,44 @@ async def test_recommend_nl_400_when_no_key_configured(ai_router):
 
 
 @pytest.mark.anyio
+async def test_provider_models_happy_path(ai_router, monkeypatch):
+    from api.schemas import AiProviderKeyIn
+
+    ai_router.set_provider_key("openai", AiProviderKeyIn(api_key="sk-test"))
+
+    async def fake_list_models(provider, api_key):
+        return ["gpt-4o", "gpt-4o-mini"]
+
+    monkeypatch.setattr(ai_router, "list_models", fake_list_models)
+
+    models = await ai_router.provider_models("openai")
+    assert models == ["gpt-4o", "gpt-4o-mini"]
+
+
+@pytest.mark.anyio
+async def test_provider_models_400_when_no_key_configured(ai_router):
+    with pytest.raises(HTTPException) as exc_info:
+        await ai_router.provider_models("openai")
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_provider_models_502_on_provider_failure(ai_router, monkeypatch):
+    from api.schemas import AiProviderKeyIn
+
+    ai_router.set_provider_key("openai", AiProviderKeyIn(api_key="sk-test"))
+
+    async def fake_list_models(provider, api_key):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(ai_router, "list_models", fake_list_models)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await ai_router.provider_models("openai")
+    assert exc_info.value.status_code == 502
+
+
+@pytest.mark.anyio
 async def test_trace_generate_nl_happy_path(ai_router, monkeypatch):
     from api.schemas import AiProviderKeyIn, TraceGenerateNlRequest
 

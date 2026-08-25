@@ -24,17 +24,28 @@ _TIMEOUT_S = 60.0
 @dataclass(frozen=True)
 class ProviderConfig:
     base_url: str
+    models_url: str
     style: str  # "openai" | "anthropic"
 
 
 PROVIDERS: dict[str, ProviderConfig] = {
-    "anthropic": ProviderConfig("https://api.anthropic.com/v1/messages", "anthropic"),
-    "openai": ProviderConfig("https://api.openai.com/v1/chat/completions", "openai"),
-    "deepseek": ProviderConfig("https://api.deepseek.com/v1/chat/completions", "openai"),
-    "kimi": ProviderConfig("https://api.moonshot.cn/v1/chat/completions", "openai"),
-    "groq": ProviderConfig("https://api.groq.com/openai/v1/chat/completions", "openai"),
-    "nvidia_nim": ProviderConfig("https://integrate.api.nvidia.com/v1/chat/completions", "openai"),
-    "openrouter": ProviderConfig("https://openrouter.ai/api/v1/chat/completions", "openai"),
+    "anthropic": ProviderConfig(
+        "https://api.anthropic.com/v1/messages", "https://api.anthropic.com/v1/models", "anthropic"
+    ),
+    "openai": ProviderConfig("https://api.openai.com/v1/chat/completions", "https://api.openai.com/v1/models", "openai"),
+    "deepseek": ProviderConfig(
+        "https://api.deepseek.com/v1/chat/completions", "https://api.deepseek.com/v1/models", "openai"
+    ),
+    "kimi": ProviderConfig("https://api.moonshot.cn/v1/chat/completions", "https://api.moonshot.cn/v1/models", "openai"),
+    "groq": ProviderConfig(
+        "https://api.groq.com/openai/v1/chat/completions", "https://api.groq.com/openai/v1/models", "openai"
+    ),
+    "nvidia_nim": ProviderConfig(
+        "https://integrate.api.nvidia.com/v1/chat/completions", "https://integrate.api.nvidia.com/v1/models", "openai"
+    ),
+    "openrouter": ProviderConfig(
+        "https://openrouter.ai/api/v1/chat/completions", "https://openrouter.ai/api/v1/models", "openai"
+    ),
 }
 
 
@@ -107,3 +118,24 @@ def stream_chat_completion(
 async def complete_once(provider: str, api_key: str, model: str, messages: list[dict[str, str]]) -> str:
     parts = [chunk async for chunk in stream_chat_completion(provider, api_key, model, messages)]
     return "".join(parts)
+
+
+async def list_models(provider: str, api_key: str) -> list[str]:
+    """Live model list from the provider's own /models endpoint, so the UI
+    can offer a real dropdown instead of a guessed model id that may have
+    been renamed or deprecated (both OpenAI-compatible and Anthropic's
+    /v1/models return the same {"data": [{"id": ...}, ...]} shape)."""
+    cfg = PROVIDERS[provider]
+    if cfg.style == "anthropic":
+        headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01"}
+    else:
+        headers = {"Authorization": f"Bearer {api_key}"}
+
+    async with httpx.AsyncClient(timeout=_TIMEOUT_S) as client:
+        resp = await client.get(cfg.models_url, headers=headers)
+        if resp.status_code >= 400:
+            raise RuntimeError(
+                _redact(api_key, f"Provider request failed ({resp.status_code}): {resp.text[:500]}")
+            )
+        data = resp.json().get("data", [])
+        return sorted(m["id"] for m in data if "id" in m)

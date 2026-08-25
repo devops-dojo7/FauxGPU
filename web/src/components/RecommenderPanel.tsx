@@ -5,16 +5,7 @@ import { calculateRecommend, fetchAiProviders, recommendNl } from "@/lib/api";
 import { formatCompact, formatUsd } from "@/lib/format";
 import { AiProvider, AiProviderStatus, MODEL_PRESETS, RecommendationCandidate } from "@/lib/types";
 import { Card, Field, NumberInput, Select, Toggle } from "./ui";
-
-const MODEL_PLACEHOLDERS: Record<AiProvider, string> = {
-  anthropic: "claude-sonnet-4-5-20250929",
-  openai: "gpt-4o",
-  deepseek: "deepseek-chat",
-  kimi: "moonshot-v1-8k",
-  groq: "llama-3.3-70b-versatile",
-  nvidia_nim: "meta/llama-3.1-70b-instruct",
-  openrouter: "anthropic/claude-3.5-sonnet",
-};
+import { AiModelSelect } from "./AiModelSelect";
 
 export function RecommenderPanel() {
   const [presetId, setPresetId] = useState(MODEL_PRESETS.find((p) => p.id === "llama2-7b")?.id ?? MODEL_PRESETS[0].id);
@@ -42,7 +33,6 @@ export function RecommenderPanel() {
       const configured = all.find((p) => p.configured);
       if (configured) {
         setNlProvider(configured.provider);
-        setNlModel(MODEL_PLACEHOLDERS[configured.provider]);
       }
     });
   }, []);
@@ -95,19 +85,16 @@ export function RecommenderPanel() {
           </p>
           <div className="flex flex-col md:flex-row gap-3">
             <div className="w-full md:w-40">
-              <Select
-                value={nlProvider}
-                onChange={(v) => {
-                  setNlProvider(v as AiProvider);
-                  setNlModel(MODEL_PLACEHOLDERS[v as AiProvider]);
-                }}
-              >
+              <Select value={nlProvider} onChange={(v) => setNlProvider(v as AiProvider)}>
                 {configuredAiProviders.map((p) => (
                   <option key={p.provider} value={p.provider}>
                     {p.provider}
                   </option>
                 ))}
               </Select>
+            </div>
+            <div className="w-full md:w-56">
+              <AiModelSelect provider={nlProvider} model={nlModel} onModelChange={setNlModel} />
             </div>
             <input
               value={nlPrompt}

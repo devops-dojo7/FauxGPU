@@ -5,18 +5,9 @@ import { fetchAiProviders, fetchSampleTrace, generateTraceNl, replayTrace } from
 import { AiProvider, AiProviderStatus, SchedulerResponse } from "@/lib/types";
 import { Card, Field, NumberInput, Select, Stat, Toggle } from "./ui";
 import { GanttChart, GanttRow } from "./GanttChart";
+import { AiModelSelect } from "./AiModelSelect";
 
 const TEAM_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6", "#14b8a6"];
-
-const MODEL_PLACEHOLDERS: Record<AiProvider, string> = {
-  anthropic: "claude-sonnet-4-5-20250929",
-  openai: "gpt-4o",
-  deepseek: "deepseek-chat",
-  kimi: "moonshot-v1-8k",
-  groq: "llama-3.3-70b-versatile",
-  nvidia_nim: "meta/llama-3.1-70b-instruct",
-  openrouter: "anthropic/claude-3.5-sonnet",
-};
 
 export function TraceReplayPanel({ gpus }: { gpus: { id: string; name: string }[] }) {
   const [traceCsv, setTraceCsv] = useState("");
@@ -44,7 +35,6 @@ export function TraceReplayPanel({ gpus }: { gpus: { id: string; name: string }[
       const configured = all.find((p) => p.configured);
       if (configured) {
         setNlProvider(configured.provider);
-        setNlModel(MODEL_PLACEHOLDERS[configured.provider]);
       }
     });
   }, []);
@@ -132,19 +122,16 @@ export function TraceReplayPanel({ gpus }: { gpus: { id: string; name: string }[
           </p>
           <div className="flex flex-col md:flex-row gap-3">
             <div className="w-full md:w-40">
-              <Select
-                value={nlProvider}
-                onChange={(v) => {
-                  setNlProvider(v as AiProvider);
-                  setNlModel(MODEL_PLACEHOLDERS[v as AiProvider]);
-                }}
-              >
+              <Select value={nlProvider} onChange={(v) => setNlProvider(v as AiProvider)}>
                 {configuredAiProviders.map((p) => (
                   <option key={p.provider} value={p.provider}>
                     {p.provider}
                   </option>
                 ))}
               </Select>
+            </div>
+            <div className="w-full md:w-56">
+              <AiModelSelect provider={nlProvider} model={nlModel} onModelChange={setNlModel} />
             </div>
             <input
               value={nlPrompt}
