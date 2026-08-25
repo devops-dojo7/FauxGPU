@@ -189,9 +189,19 @@ export interface RunSummary {
   updated_at: number;
 }
 
+export interface CheckpointEvent {
+  event_id: string;
+  kind: "save" | "restore";
+  step: number;
+  size_gb: number;
+  overhead_s: number;
+  steps_lost: number | null;
+}
+
 export interface RunDetail extends RunSummary {
   steps: RunStep[];
   events: ChaosEvent[];
+  checkpoint_events: CheckpointEvent[];
 }
 
 export interface SpeculativeDecodingRequest {
@@ -337,6 +347,7 @@ export interface SimulateRunRequest {
   total_steps: number;
   speedup: number;
   utilization: number;
+  checkpoint_interval_steps: number | null;
 }
 
 export interface ModelPreset extends ModelShape {

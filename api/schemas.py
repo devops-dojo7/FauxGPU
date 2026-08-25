@@ -267,9 +267,19 @@ class RunSummary(BaseModel):
     updated_at: float
 
 
+class CheckpointEventOut(BaseModel):
+    event_id: str
+    kind: str = Field(..., description="save | restore")
+    step: int
+    size_gb: float
+    overhead_s: float
+    steps_lost: int | None = None
+
+
 class RunDetail(RunSummary):
     steps: list[RunStepRequest]
     events: list[ChaosEventOut]
+    checkpoint_events: list[CheckpointEventOut]
 
 
 class SimulateRunRequest(BaseModel):
@@ -281,6 +291,7 @@ class SimulateRunRequest(BaseModel):
     total_steps: int = 50
     speedup: float = 20.0
     utilization: float = 0.35
+    checkpoint_interval_steps: int | None = None
 
 
 class InferenceStreamRequest(BaseModel):

@@ -9,6 +9,7 @@ from api.runs_store import store
 from api.schemas import (
     ChaosEventOut,
     ChaosInjectRequest,
+    CheckpointEventOut,
     EconomicsPointOut,
     EconomicsResponse,
     EconomicsSummaryOut,
@@ -21,6 +22,12 @@ from api.schemas import (
     SimulateRunRequest,
 )
 from engine.chaos import ChaosEvent, effective_step_seconds, effective_topology, is_active
+from engine.checkpointing import (
+    checkpoint_size_gb,
+    checkpoint_write_seconds,
+    is_recovery_trigger,
+    recovery_overhead_seconds,
+)
 from engine.compute import estimate_step_time
 from engine.economics import compute_run_economics
 from engine.gpu_specs import get_gpu
@@ -159,6 +166,7 @@ def get_run(run_id: str):
         updated_at=run.updated_at,
         steps=run.steps,
         events=[ChaosEventOut(**e) for e in run.chaos_events],
+        checkpoint_events=[CheckpointEventOut(**e) for e in run.checkpoint_events],
     )
 
 
@@ -213,6 +221,9 @@ async def _run_simulation(run_id: str, model: ModelShape, topo, req: SimulateRun
     )
     start = time.time()
     tokens_seen = 0
+    ckpt_size_gb = checkpoint_size_gb(model, req.precision) if req.checkpoint_interval_steps else 0.0
+    last_checkpoint_step = 0
+    recovered_event_ids: set[str] = set()
     try:
         for i in range(1, req.total_steps + 1):
             run = store.get(run_id)
@@ -227,6 +238,31 @@ async def _run_simulation(run_id: str, model: ModelShape, topo, req: SimulateRun
             else:
                 step_s = step.total_s
                 active_gpus = topo.total_gpus
+
+            if req.checkpoint_interval_steps and i % req.checkpoint_interval_steps == 0:
+                write_s = checkpoint_write_seconds(ckpt_size_gb)
+                step_s += write_s
+                last_checkpoint_step = i
+                store.add_checkpoint_event(
+                    run_id, {"kind": "save", "step": i, "size_gb": ckpt_size_gb, "overhead_s": write_s, "steps_lost": None}
+                )
+
+            for e in active:
+                # e.injected_at_step is set from whichever step was "latest" at the moment
+                # the failure was injected (api/runs_store.py's inject_event) — by the time
+                # this loop observes it, that step may already be behind the current `i`
+                # (a race between the injecting request and this task's own progress), so
+                # trigger on "reached or passed", not exact equality, and dedupe by event id
+                # so a still-active event (e.g. a permanent node_drain) only charges once.
+                if is_recovery_trigger(e.kind) and e.event_id not in recovered_event_ids and e.injected_at_step <= i:
+                    recovered_event_ids.add(e.event_id)
+                    steps_lost = i - last_checkpoint_step
+                    recovery_s = recovery_overhead_seconds(ckpt_size_gb, steps_lost, step_s)
+                    step_s += recovery_s
+                    store.add_checkpoint_event(
+                        run_id,
+                        {"kind": "restore", "step": i, "size_gb": ckpt_size_gb, "overhead_s": recovery_s, "steps_lost": steps_lost},
+                    )
 
             await asyncio.sleep(max(0.0, step_s / max(req.speedup, 0.001)))
             tokens_seen += req.tokens_per_step

@@ -35,6 +35,7 @@ export function LiveTrainingPanel({
 
   const [totalSteps, setTotalSteps] = useState(50);
   const [speedup, setSpeedup] = useState(20);
+  const [checkpointIntervalSteps, setCheckpointIntervalSteps] = useState(0);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
@@ -124,6 +125,7 @@ export function LiveTrainingPanel({
       total_steps: totalSteps,
       speedup,
       utilization: 0.35,
+      checkpoint_interval_steps: checkpointIntervalSteps > 0 ? checkpointIntervalSteps : null,
     })
       .then((run) => {
         userPicked.current = true;
@@ -145,6 +147,7 @@ export function LiveTrainingPanel({
       total_steps: totalSteps,
       speedup,
       utilization: 0.35,
+      checkpoint_interval_steps: null, // not modeled for real k8s Jobs, in-process simulation only
     })
       .then((res) => {
         userPicked.current = true;
@@ -213,6 +216,9 @@ export function LiveTrainingPanel({
         </Field>
         <Field label="Speedup (x realtime)">
           <NumberInput value={speedup} min={1} max={1000} onChange={setSpeedup} />
+        </Field>
+        <Field label="Checkpoint every N steps (0 = off)">
+          <NumberInput value={checkpointIntervalSteps} min={0} onChange={setCheckpointIntervalSteps} />
         </Field>
         <button
           onClick={startNewRun}
@@ -356,7 +362,24 @@ export function LiveTrainingPanel({
               <span className="text-xs text-muted-soft ml-1">chaos events (hover for details)</span>
             </div>
           )}
-          {detail.events.length === 0 && <div className="mb-4" />}
+          {detail.events.length === 0 && <div className="mb-1" />}
+          {detail.checkpoint_events.length > 0 && (
+            <div className="flex items-center gap-1.5 mb-4">
+              {detail.checkpoint_events.map((e) => (
+                <span
+                  key={e.event_id}
+                  className={`h-2.5 w-2.5 rounded-sm ${e.kind === "save" ? "bg-sky-500" : "bg-purple-500"}`}
+                  title={
+                    e.kind === "save"
+                      ? `checkpoint saved at step ${e.step} — ${e.size_gb.toFixed(1)} GB, ${e.overhead_s.toFixed(1)}s write`
+                      : `restored from checkpoint at step ${e.step} — ${e.overhead_s.toFixed(1)}s recovery, ${e.steps_lost} step(s) lost`
+                  }
+                />
+              ))}
+              <span className="text-xs text-muted-soft ml-1">checkpoint save/restore (hover for details)</span>
+            </div>
+          )}
+          {detail.checkpoint_events.length === 0 && <div className="mb-4" />}
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <Stat label="Model / GPU" value={`${meta.model}`} sub={`${meta.gpu} × ${meta.total_gpus}`} />

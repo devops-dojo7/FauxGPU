@@ -20,6 +20,7 @@ class RunState:
     meta: dict | None = None
     steps: list[dict] = field(default_factory=list)
     chaos_events: list[dict] = field(default_factory=list)
+    checkpoint_events: list[dict] = field(default_factory=list)
     started_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
 
@@ -85,6 +86,15 @@ class RunsStore:
                     "severity": severity,
                 }
             )
+            run.updated_at = time.time()
+            return run
+
+    def add_checkpoint_event(self, run_id: str, event: dict) -> RunState | None:
+        with self._lock:
+            run = self._runs.get(run_id)
+            if run is None:
+                return None
+            run.checkpoint_events.append({"event_id": uuid.uuid4().hex[:8], **event})
             run.updated_at = time.time()
             return run
 
