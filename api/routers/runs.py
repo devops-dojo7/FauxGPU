@@ -7,6 +7,9 @@ from fastapi import APIRouter, HTTPException
 from api import grafana_push, k8s_launcher
 from api.runs_store import store
 from api.schemas import (
+    EconomicsPointOut,
+    EconomicsResponse,
+    EconomicsSummaryOut,
     K8sAvailabilityResponse,
     LaunchK8sJobResponse,
     RunDetail,
@@ -16,6 +19,8 @@ from api.schemas import (
     SimulateRunRequest,
 )
 from engine.compute import estimate_step_time
+from engine.economics import compute_run_economics
+from engine.gpu_specs import get_gpu
 from engine.memory import ModelShape
 from engine.topology import build_topology
 
@@ -114,6 +119,30 @@ def get_run(run_id: str):
         started_at=run.started_at,
         updated_at=run.updated_at,
         steps=run.steps,
+    )
+
+
+@router.get("/{run_id}/economics", response_model=EconomicsResponse)
+def get_run_economics(run_id: str):
+    run = store.get(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"Unknown run: {run_id!r}")
+    meta = run.meta or {}
+    try:
+        gpu = get_gpu(meta["gpu"])
+    except (KeyError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"Run has no cost data yet: {e}") from e
+
+    econ = compute_run_economics(
+        price_per_hr_usd=gpu.price_per_hr_usd,
+        total_gpus=meta.get("total_gpus", 1),
+        compute_s_per_step=meta.get("compute_s_per_step", 0.0),
+        communication_s_per_step=meta.get("communication_s_per_step", 0.0),
+        steps=run.steps,
+    )
+    return EconomicsResponse(
+        points=[EconomicsPointOut(**p.__dict__) for p in econ.points],
+        summary=EconomicsSummaryOut(**econ.summary.__dict__),
     )
 
 

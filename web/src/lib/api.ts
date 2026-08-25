@@ -1,6 +1,7 @@
 import type {
   CostRequest,
   CostResponse,
+  EconomicsResponse,
   Fabric,
   GpuSpec,
   InferenceRequest,
@@ -8,6 +9,8 @@ import type {
   InferenceStreamRequest,
   K8sAvailability,
   LaunchK8sJobResponse,
+  RecommendRequest,
+  RecommendResponse,
   RunDetail,
   RunSummary,
   SimulateRunRequest,
@@ -107,3 +110,6 @@ export const launchK8sJob = (req: SimulateRunRequest) =>
 export const stopRun = (runId: string) => post<Record<string, never>, RunSummary>(`/runs/${encodeURIComponent(runId)}/stop`, {});
 export const calculateSpeculativeDecoding = (req: SpeculativeDecodingRequest) =>
   post<SpeculativeDecodingRequest, SpeculativeDecodingResponse>("/calculate/speculative-decoding", req);
+export const calculateRecommend = (req: RecommendRequest) =>
+  post<RecommendRequest, RecommendResponse>("/calculate/recommend", req);
+export const fetchRunEconomics = (runId: string) => get<EconomicsResponse>(`/runs/${encodeURIComponent(runId)}/economics`);

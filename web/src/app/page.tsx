@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { calculateCost, calculateVram, fetchFabrics, fetchGpus } from "@/lib/api";
 import { CostResponse, Fabric, GpuSpec, MODEL_PRESETS, VramResponse } from "@/lib/types";
 import { ModelPanel, ModelPanelState, getModelLabel } from "@/components/ModelPanel";
@@ -20,10 +21,12 @@ import { MultiRequestPlayground } from "@/components/MultiRequestPlayground";
 import { SpeculativeDecodingPanel } from "@/components/SpeculativeDecodingPanel";
 import { ThroughputCurvePanel } from "@/components/ThroughputCurvePanel";
 import { ParallelismCurvePanel } from "@/components/ParallelismCurvePanel";
+import { RecommenderPanel } from "@/components/RecommenderPanel";
+import { CostDashboardPanel } from "@/components/CostDashboardPanel";
 import { decodeConfig, encodeConfig } from "@/lib/shareConfig";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-type Tab = "training" | "inference" | "datacenter" | "gpu-compare" | "compare" | "playground";
+type Tab = "training" | "inference" | "datacenter" | "gpu-compare" | "compare" | "playground" | "recommender" | "cost-dashboard";
 
 interface SharedConfig {
   modelState: ModelPanelState;
@@ -187,7 +190,10 @@ export default function Home() {
       <div className="relative max-w-7xl mx-auto p-6 md:p-10">
         <header className="mb-8 flex flex-col gap-6">
           <div>
-            <h1 className="font-display text-4xl md:text-5xl text-ink inline-block">ErsatzGPU</h1>
+            <div className="flex items-center gap-3">
+              <Image src="/logo.png" alt="ErsatzGPU logo" width={48} height={48} className="h-10 w-10 md:h-12 md:w-12 rounded-xl" priority />
+              <h1 className="font-display text-4xl md:text-5xl text-ink inline-block">ErsatzGPU</h1>
+            </div>
             <p className="text-sm text-body mt-2 max-w-2xl">
               Learn how GPU training and inference actually work — VRAM, KV cache, NVLink/InfiniBand topology,
               disaggregated serving, and real cost tradeoffs — with no GPU required.
@@ -210,6 +216,8 @@ export default function Home() {
                   ["gpu-compare", "Compare GPUs"],
                   ["compare", "Compare Models"],
                   ["playground", "Playground"],
+                  ["recommender", "Recommender"],
+                  ["cost-dashboard", "Cost Dashboard"],
                 ] as [Tab, string][]
               ).map(([id, label]) => (
                 <button
@@ -236,7 +244,7 @@ export default function Home() {
           </div>
         </header>
 
-        {tab === "playground" || tab === "gpu-compare" ? null : tab === "compare" || tab === "datacenter" ? (
+        {tab === "playground" || tab === "gpu-compare" || tab === "recommender" || tab === "cost-dashboard" ? null : tab === "compare" || tab === "datacenter" ? (
           <div className="mb-6 max-w-md">
             <GpuPicker gpus={gpus} selectedId={gpuId} onSelect={setGpuId} />
           </div>
@@ -359,6 +367,10 @@ export default function Home() {
         {tab === "gpu-compare" && <GpuComparePanel gpus={gpus} />}
 
         {tab === "playground" && <PlaygroundPanel />}
+
+        {tab === "recommender" && <RecommenderPanel />}
+
+        {tab === "cost-dashboard" && <CostDashboardPanel />}
       </div>
     </div>
   );

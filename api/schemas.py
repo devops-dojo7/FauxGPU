@@ -134,6 +134,60 @@ class SpeculativeDecodingResponse(BaseModel):
     speedup: float
 
 
+class RecommendRequest(BaseModel):
+    model: ModelShapeIn
+    precision: str = "bf16"
+    tokens_per_step: int = 32768
+    total_training_tokens: float = 1e12
+    objective: str = Field("cost", description="cost | time")
+    batch_size: int = 1
+    seq_len: int = 2048
+    utilization: float = 0.35
+    num_microbatches: int = 1
+    max_gpus: int = 64
+    budget_usd: float | None = None
+    max_time_hours: float | None = None
+    candidate_gpu_ids: list[str] | None = None
+
+
+class RecommendationCandidateOut(BaseModel):
+    gpu_id: str
+    gpu_name: str
+    num_gpus: int
+    tp_degree: int
+    pp_degree: int
+    total_cost_usd: float
+    total_time_hours: float
+    cost_per_1k_tokens_usd: float
+    vram_per_gpu_gb: float
+    vram_headroom_gb: float
+
+
+class RecommendResponse(BaseModel):
+    candidates: list[RecommendationCandidateOut]
+
+
+class EconomicsPointOut(BaseModel):
+    step: int
+    elapsed_hours: float
+    cost_usd: float
+    cumulative_cost_usd: float
+    utilization_pct: float
+
+
+class EconomicsSummaryOut(BaseModel):
+    total_cost_usd: float
+    total_gpu_hours: float
+    avg_utilization_pct: float
+    idle_cost_usd: float
+    idle_pct: float
+
+
+class EconomicsResponse(BaseModel):
+    points: list[EconomicsPointOut]
+    summary: EconomicsSummaryOut
+
+
 class RunStartRequest(BaseModel):
     model: str
     gpu: str

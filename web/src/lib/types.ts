@@ -218,6 +218,60 @@ export interface LaunchK8sJobResponse {
   run_id: string;
 }
 
+export interface RecommendRequest {
+  model: ModelShape;
+  precision: string;
+  tokens_per_step: number;
+  total_training_tokens: number;
+  objective: "cost" | "time";
+  batch_size: number;
+  seq_len: number;
+  utilization: number;
+  num_microbatches: number;
+  max_gpus: number;
+  budget_usd: number | null;
+  max_time_hours: number | null;
+  candidate_gpu_ids: string[] | null;
+}
+
+export interface RecommendationCandidate {
+  gpu_id: string;
+  gpu_name: string;
+  num_gpus: number;
+  tp_degree: number;
+  pp_degree: number;
+  total_cost_usd: number;
+  total_time_hours: number;
+  cost_per_1k_tokens_usd: number;
+  vram_per_gpu_gb: number;
+  vram_headroom_gb: number;
+}
+
+export interface RecommendResponse {
+  candidates: RecommendationCandidate[];
+}
+
+export interface EconomicsPoint {
+  step: number;
+  elapsed_hours: number;
+  cost_usd: number;
+  cumulative_cost_usd: number;
+  utilization_pct: number;
+}
+
+export interface EconomicsSummary {
+  total_cost_usd: number;
+  total_gpu_hours: number;
+  avg_utilization_pct: number;
+  idle_cost_usd: number;
+  idle_pct: number;
+}
+
+export interface EconomicsResponse {
+  points: EconomicsPoint[];
+  summary: EconomicsSummary;
+}
+
 export interface SimulateRunRequest {
   model: ModelShape;
   model_label: string;

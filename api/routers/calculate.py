@@ -5,6 +5,9 @@ from api.schemas import (
     CostResponse,
     InferenceRequest,
     InferenceResponse,
+    RecommendationCandidateOut,
+    RecommendRequest,
+    RecommendResponse,
     SpeculativeDecodingRequest,
     SpeculativeDecodingResponse,
     VramRequest,
@@ -16,6 +19,7 @@ from engine.inference import estimate_serving_capacity, simulate_serving
 from engine.memory import ModelShape, compute_vram_breakdown
 from engine.parallelism import estimate_parallel_step_time
 from engine.power import training_step_power_watts
+from engine.recommend import recommend_configurations
 from engine.speculative import simulate_speculative_decoding
 from engine.topology import build_topology
 
@@ -144,6 +148,33 @@ def calculate_inference(req: InferenceRequest):
         weights_gb=capacity.weights_gb,
         kv_budget_gb=capacity.kv_budget_gb,
         max_concurrent_sequences=capacity.max_concurrent_sequences,
+    )
+
+
+@router.post("/recommend", response_model=RecommendResponse)
+def calculate_recommend(req: RecommendRequest):
+    model = ModelShape(**req.model.model_dump())
+    try:
+        candidates = recommend_configurations(
+            model,
+            precision=req.precision,
+            tokens_per_step=req.tokens_per_step,
+            total_training_tokens=req.total_training_tokens,
+            objective=req.objective,
+            batch_size=req.batch_size,
+            seq_len=req.seq_len,
+            utilization=req.utilization,
+            num_microbatches=req.num_microbatches,
+            max_gpus=req.max_gpus,
+            budget_usd=req.budget_usd,
+            max_time_hours=req.max_time_hours,
+            candidate_gpu_ids=req.candidate_gpu_ids,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return RecommendResponse(
+        candidates=[RecommendationCandidateOut(**c.__dict__) for c in candidates]
     )
 
 
