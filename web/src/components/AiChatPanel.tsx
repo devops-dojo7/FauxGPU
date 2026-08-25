@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fetchAiProviders, fetchLangfuseStatus, streamAiChat } from "@/lib/api";
-import { AiProvider, AiProviderStatus, ChatMessage, LangfuseStatus } from "@/lib/types";
+import { fetchAiProviders, streamAiChat } from "@/lib/api";
+import { AiProvider, AiProviderStatus, ChatMessage } from "@/lib/types";
 import { useAiAssistant } from "@/lib/aiAssistantContext";
 import { Select } from "./ui";
 import { AiModelSelect } from "./AiModelSelect";
@@ -48,7 +48,6 @@ export function AiChatPanel() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [langfuse, setLangfuse] = useState<LangfuseStatus | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -62,9 +61,6 @@ export function AiChatPanel() {
         }
       })
       .catch((e) => setError(e.message));
-    fetchLangfuseStatus()
-      .then(setLangfuse)
-      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -156,19 +152,6 @@ export function AiChatPanel() {
 
         <p className="text-center text-xs text-muted px-6 py-2.5 border-b border-hairline shrink-0">
           Responses are generated using AI and may contain mistakes.
-          {langfuse?.tracing_available && (
-            <>
-              {" "}
-              <a
-                href={langfuse.public_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-body-strong underline decoration-hairline-strong hover:text-ink transition-colors"
-              >
-                View traces in Langfuse ↗
-              </a>
-            </>
-          )}
         </p>
 
         <div className="px-4 py-3 border-b border-hairline shrink-0">

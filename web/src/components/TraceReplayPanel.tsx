@@ -177,7 +177,17 @@ export function TraceReplayPanel({ gpus }: { gpus: { id: string; name: string }[
           spellCheck={false}
           className="w-full rounded-md border border-hairline-strong bg-surface-card px-3 py-2 text-xs font-mono text-ink outline-none focus:border-ink focus:border-2"
         />
-        <div className="flex justify-end mt-4">
+        <div className="flex justify-end items-center gap-3 mt-4">
+          {langfuse?.tracing_available && (
+            <a
+              href={langfuse.public_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-hairline-strong text-ink text-sm font-medium px-5 py-2.5 h-10 transition-colors hover:bg-surface-strong"
+            >
+              View in Langfuse ↗
+            </a>
+          )}
           <button
             onClick={runReplay}
             disabled={loading || !gpuId || !traceCsv.trim()}
