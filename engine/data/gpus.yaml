@@ -930,6 +930,92 @@ gpus:
     l2_cache_mb: 272
     interconnect_name: null
 
+  # Google's custom AI accelerator line — never sold as hardware, only
+  # rented as Google Cloud TPU capacity. HBM capacity/bandwidth, bf16/int8
+  # peak compute, and ICI (inter-chip interconnect, mapped onto nvlink_gbps
+  # as this table's "scale-up fabric" slot) come straight from Google's own
+  # published per-chip system architecture tables (docs.cloud.google.com/
+  # tpu/docs/v5e, /v5p, /v6e) — GiB/s bandwidth figures converted to decimal
+  # GB/s for consistency with the rest of this file. Google does not publish
+  # TDP; the watts below are secondary-source estimates (teardown/press
+  # coverage), not vendor numbers — treat as illustrative, same confidence
+  # tier as the Huawei Ascend entries. Pricing is on-demand US list price
+  # and fluctuates by region/commitment; treat as illustrative too.
+  - id: tpu-v5e
+    vendor: Google
+    name: TPU v5e 16GB
+    vram_gb: 16
+    mem_bandwidth_gbps: 859
+    bf16_tflops: 197
+    fp8_tflops: 393 # published as peak Int8 TOPS
+    nvlink_gbps: 400 # ICI (inter-chip interconnect) per chip
+    price_per_hr_usd: 1.2
+    price_note: "Google Cloud on-demand list price — never sold as standalone hardware"
+    tdp_watts: 200
+    idle_watts: 28
+    architecture: TPU v5e
+    process_node: TSMC N5 (est.)
+    launch_year: 2023
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: TensorCores
+    matrix_core_count: null
+    matrix_core_label: MXU
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "ICI (Inter-Chip Interconnect)"
+
+  - id: tpu-v5p
+    vendor: Google
+    name: TPU v5p 95GB
+    vram_gb: 95
+    mem_bandwidth_gbps: 2765
+    bf16_tflops: 459
+    fp8_tflops: 459 # Google's own v5p spec table lists the same figure for FP8 as BF16 — no separate low-precision datapath published
+    nvlink_gbps: 1200 # ICI (inter-chip interconnect) per chip
+    price_per_hr_usd: 4.2
+    price_note: "Google Cloud on-demand list price — never sold as standalone hardware"
+    tdp_watts: 400
+    idle_watts: 55
+    architecture: TPU v5p
+    process_node: TSMC N5 (est.)
+    launch_year: 2023
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: TensorCores
+    matrix_core_count: null
+    matrix_core_label: MXU
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "ICI (Inter-Chip Interconnect)"
+
+  - id: tpu-v6e-trillium
+    vendor: Google
+    name: TPU v6e (Trillium) 32GB
+    vram_gb: 32
+    mem_bandwidth_gbps: 1759
+    bf16_tflops: 918
+    fp8_tflops: 1836 # published as peak Int8 TOPS
+    nvlink_gbps: 800 # bidirectional ICI (inter-chip interconnect) per chip
+    price_per_hr_usd: 2.7
+    price_note: "Google Cloud on-demand list price — never sold as standalone hardware"
+    tdp_watts: 300
+    idle_watts: 40
+    architecture: TPU v6e (Trillium)
+    process_node: TSMC N5 (est.)
+    launch_year: 2024
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: TensorCores
+    matrix_core_count: null
+    matrix_core_label: MXU
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "ICI (Inter-Chip Interconnect)"
+
 # Interconnect fabrics used to join GPUs beyond a single NVLink domain (node-to-node).
 fabrics:
   - id: ethernet-100g
