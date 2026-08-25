@@ -272,6 +272,44 @@ export interface EconomicsResponse {
   summary: EconomicsSummary;
 }
 
+export interface SchedJob {
+  job_id: string;
+  team: string;
+  priority: number;
+  gpu_count: number;
+  submit_time: number;
+  duration: number;
+}
+
+export interface SchedulerRequest {
+  jobs: SchedJob[];
+  gpu_id: string;
+  total_gpus: number;
+  preemption_enabled: boolean;
+  horizon: number | null;
+}
+
+export interface TimelineSegment {
+  start: number;
+  end: number;
+}
+
+export interface JobOutcome {
+  job_id: string;
+  team: string;
+  segments: TimelineSegment[];
+  final_status: "completed" | "incomplete" | "never_started";
+  wait_time_total: number;
+  preempted_count: number;
+}
+
+export interface SchedulerResponse {
+  jobs: JobOutcome[];
+  pool_total_gpus: number;
+  makespan: number;
+  gpu_utilization_pct: number;
+}
+
 export interface SimulateRunRequest {
   model: ModelShape;
   model_label: string;

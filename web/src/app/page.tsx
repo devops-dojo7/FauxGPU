@@ -23,10 +23,11 @@ import { ThroughputCurvePanel } from "@/components/ThroughputCurvePanel";
 import { ParallelismCurvePanel } from "@/components/ParallelismCurvePanel";
 import { RecommenderPanel } from "@/components/RecommenderPanel";
 import { CostDashboardPanel } from "@/components/CostDashboardPanel";
+import { SchedulerPanel } from "@/components/SchedulerPanel";
 import { decodeConfig, encodeConfig } from "@/lib/shareConfig";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-type Tab = "training" | "inference" | "datacenter" | "gpu-compare" | "compare" | "playground" | "recommender" | "cost-dashboard";
+type Tab = "training" | "inference" | "datacenter" | "gpu-compare" | "compare" | "playground" | "recommender" | "cost-dashboard" | "scheduler";
 
 interface SharedConfig {
   modelState: ModelPanelState;
@@ -218,6 +219,7 @@ export default function Home() {
                   ["playground", "Playground"],
                   ["recommender", "Recommender"],
                   ["cost-dashboard", "Cost Dashboard"],
+                  ["scheduler", "Scheduler"],
                 ] as [Tab, string][]
               ).map(([id, label]) => (
                 <button
@@ -244,7 +246,7 @@ export default function Home() {
           </div>
         </header>
 
-        {tab === "playground" || tab === "gpu-compare" || tab === "recommender" || tab === "cost-dashboard" ? null : tab === "compare" || tab === "datacenter" ? (
+        {tab === "playground" || tab === "gpu-compare" || tab === "recommender" || tab === "cost-dashboard" || tab === "scheduler" ? null : tab === "compare" || tab === "datacenter" ? (
           <div className="mb-6 max-w-md">
             <GpuPicker gpus={gpus} selectedId={gpuId} onSelect={setGpuId} />
           </div>
@@ -371,6 +373,8 @@ export default function Home() {
         {tab === "recommender" && <RecommenderPanel />}
 
         {tab === "cost-dashboard" && <CostDashboardPanel />}
+
+        {tab === "scheduler" && <SchedulerPanel gpus={gpus} />}
       </div>
     </div>
   );

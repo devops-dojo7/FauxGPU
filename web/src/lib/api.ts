@@ -13,6 +13,8 @@ import type {
   RecommendResponse,
   RunDetail,
   RunSummary,
+  SchedulerRequest,
+  SchedulerResponse,
   SimulateRunRequest,
   SpeculativeDecodingRequest,
   SpeculativeDecodingResponse,
@@ -113,3 +115,5 @@ export const calculateSpeculativeDecoding = (req: SpeculativeDecodingRequest) =>
 export const calculateRecommend = (req: RecommendRequest) =>
   post<RecommendRequest, RecommendResponse>("/calculate/recommend", req);
 export const fetchRunEconomics = (runId: string) => get<EconomicsResponse>(`/runs/${encodeURIComponent(runId)}/economics`);
+export const simulateScheduler = (req: SchedulerRequest) =>
+  post<SchedulerRequest, SchedulerResponse>("/scheduler/simulate", req);

@@ -188,6 +188,44 @@ class EconomicsResponse(BaseModel):
     summary: EconomicsSummaryOut
 
 
+class SchedJobIn(BaseModel):
+    job_id: str
+    team: str
+    priority: int = Field(..., description="Higher = more important")
+    gpu_count: int = Field(..., gt=0)
+    submit_time: float = Field(..., ge=0)
+    duration: float = Field(..., gt=0)
+
+
+class SchedulerRequest(BaseModel):
+    jobs: list[SchedJobIn]
+    gpu_id: str
+    total_gpus: int = Field(..., gt=0)
+    preemption_enabled: bool = True
+    horizon: float | None = None
+
+
+class TimelineSegmentOut(BaseModel):
+    start: float
+    end: float
+
+
+class JobOutcomeOut(BaseModel):
+    job_id: str
+    team: str
+    segments: list[TimelineSegmentOut]
+    final_status: str
+    wait_time_total: float
+    preempted_count: int
+
+
+class SchedulerResponse(BaseModel):
+    jobs: list[JobOutcomeOut]
+    pool_total_gpus: int
+    makespan: float
+    gpu_utilization_pct: float
+
+
 class RunStartRequest(BaseModel):
     model: str
     gpu: str
