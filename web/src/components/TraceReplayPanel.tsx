@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { fetchAiProviders, fetchSampleTrace, generateTraceNl, replayTrace } from "@/lib/api";
-import { AiProvider, AiProviderStatus, SchedulerResponse } from "@/lib/types";
+import { fetchAiProviders, fetchLangfuseStatus, fetchSampleTrace, generateTraceNl, replayTrace } from "@/lib/api";
+import { AiProvider, AiProviderStatus, LangfuseStatus, SchedulerResponse } from "@/lib/types";
 import { Card, Field, NumberInput, Select, Stat, Toggle } from "./ui";
 import { GanttChart, GanttRow } from "./GanttChart";
 import { AiModelSelect } from "./AiModelSelect";
@@ -25,6 +25,7 @@ export function TraceReplayPanel({ gpus }: { gpus: { id: string; name: string }[
   const [nlPrompt, setNlPrompt] = useState("");
   const [nlLoading, setNlLoading] = useState(false);
   const [nlError, setNlError] = useState<string | null>(null);
+  const [langfuse, setLangfuse] = useState<LangfuseStatus | null>(null);
 
   useEffect(() => {
     fetchSampleTrace()
@@ -37,6 +38,9 @@ export function TraceReplayPanel({ gpus }: { gpus: { id: string; name: string }[
         setNlProvider(configured.provider);
       }
     });
+    fetchLangfuseStatus()
+      .then(setLangfuse)
+      .catch(() => {});
   }, []);
 
   const configuredAiProviders = aiProviders.filter((p) => p.configured);
@@ -119,6 +123,19 @@ export function TraceReplayPanel({ gpus }: { gpus: { id: string; name: string }[
           <p className="text-xs text-muted max-w-2xl mb-4">
             Describe a workload in plain English and an AI provider generates a trace in the CSV format below —
             it&apos;s validated by the same parser as any pasted trace before it&apos;s used.
+            {langfuse?.tracing_available && (
+              <>
+                {" "}
+                <a
+                  href={langfuse.public_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-body-strong underline decoration-hairline-strong hover:text-ink transition-colors"
+                >
+                  View traces in Langfuse ↗
+                </a>
+              </>
+            )}
           </p>
           <div className="flex flex-col md:flex-row gap-3">
             <div className="w-full md:w-40">

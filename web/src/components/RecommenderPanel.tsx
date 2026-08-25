@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { calculateRecommend, fetchAiProviders, recommendNl } from "@/lib/api";
+import { calculateRecommend, fetchAiProviders, fetchLangfuseStatus, recommendNl } from "@/lib/api";
 import { formatCompact, formatUsd } from "@/lib/format";
-import { AiProvider, AiProviderStatus, MODEL_PRESETS, RecommendationCandidate } from "@/lib/types";
+import { AiProvider, AiProviderStatus, LangfuseStatus, MODEL_PRESETS, RecommendationCandidate } from "@/lib/types";
 import { Card, Field, NumberInput, Select, Toggle } from "./ui";
 import { AiModelSelect } from "./AiModelSelect";
 
@@ -26,6 +26,7 @@ export function RecommenderPanel() {
   const [nlPrompt, setNlPrompt] = useState("");
   const [nlLoading, setNlLoading] = useState(false);
   const [nlError, setNlError] = useState<string | null>(null);
+  const [langfuse, setLangfuse] = useState<LangfuseStatus | null>(null);
 
   useEffect(() => {
     fetchAiProviders().then((all) => {
@@ -35,6 +36,9 @@ export function RecommenderPanel() {
         setNlProvider(configured.provider);
       }
     });
+    fetchLangfuseStatus()
+      .then(setLangfuse)
+      .catch(() => {});
   }, []);
 
   const configuredAiProviders = aiProviders.filter((p) => p.configured);
@@ -82,6 +86,19 @@ export function RecommenderPanel() {
           <p className="text-xs text-muted max-w-2xl mb-4">
             Describe the training run you want, and an AI provider turns it into the structured search below —
             the ranked results are still produced by the same deterministic engine, not the model.
+            {langfuse?.tracing_available && (
+              <>
+                {" "}
+                <a
+                  href={langfuse.public_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-body-strong underline decoration-hairline-strong hover:text-ink transition-colors"
+                >
+                  View traces in Langfuse ↗
+                </a>
+              </>
+            )}
           </p>
           <div className="flex flex-col md:flex-row gap-3">
             <div className="w-full md:w-40">
