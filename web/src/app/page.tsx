@@ -26,10 +26,11 @@ import { CostDashboardPanel } from "@/components/CostDashboardPanel";
 import { SchedulerPanel } from "@/components/SchedulerPanel";
 import { MigPlannerPanel } from "@/components/MigPlannerPanel";
 import { AutoscalingPanel } from "@/components/AutoscalingPanel";
+import { NetworkContentionPanel } from "@/components/NetworkContentionPanel";
 import { decodeConfig, encodeConfig } from "@/lib/shareConfig";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-type Tab = "training" | "inference" | "datacenter" | "gpu-compare" | "compare" | "playground" | "recommender" | "cost-dashboard" | "scheduler" | "mig-planner" | "autoscaling";
+type Tab = "training" | "inference" | "datacenter" | "gpu-compare" | "compare" | "playground" | "recommender" | "cost-dashboard" | "scheduler" | "mig-planner" | "autoscaling" | "network-contention";
 
 interface SharedConfig {
   modelState: ModelPanelState;
@@ -224,6 +225,7 @@ export default function Home() {
                   ["scheduler", "Scheduler"],
                   ["mig-planner", "MIG Planner"],
                   ["autoscaling", "Autoscaling"],
+                  ["network-contention", "Network Contention"],
                 ] as [Tab, string][]
               ).map(([id, label]) => (
                 <button
@@ -250,7 +252,7 @@ export default function Home() {
           </div>
         </header>
 
-        {tab === "playground" || tab === "gpu-compare" || tab === "recommender" || tab === "cost-dashboard" || tab === "scheduler" || tab === "mig-planner" || tab === "autoscaling" ? null : tab === "compare" || tab === "datacenter" ? (
+        {tab === "playground" || tab === "gpu-compare" || tab === "recommender" || tab === "cost-dashboard" || tab === "scheduler" || tab === "mig-planner" || tab === "autoscaling" || tab === "network-contention" ? null : tab === "compare" || tab === "datacenter" ? (
           <div className="mb-6 max-w-md">
             <GpuPicker gpus={gpus} selectedId={gpuId} onSelect={setGpuId} />
           </div>
@@ -383,6 +385,8 @@ export default function Home() {
         {tab === "mig-planner" && <MigPlannerPanel />}
 
         {tab === "autoscaling" && <AutoscalingPanel gpus={gpus} />}
+
+        {tab === "network-contention" && <NetworkContentionPanel />}
       </div>
     </div>
   );

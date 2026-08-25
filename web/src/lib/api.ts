@@ -9,6 +9,8 @@ import type {
   MigPackRequest,
   MigPackResponse,
   MigProfile,
+  NetworkContentionRequest,
+  NetworkContentionResponse,
   Fabric,
   GpuSpec,
   InferenceRequest,
@@ -131,3 +133,5 @@ export const fetchMigProfiles = (gpuId: string) => get<MigProfile[]>(`/mig/profi
 export const packMigRequests = (req: MigPackRequest) => post<MigPackRequest, MigPackResponse>("/mig/pack", req);
 export const simulateAutoscaling = (req: AutoscalingRequest) =>
   post<AutoscalingRequest, AutoscalingResponse>("/autoscaling/simulate", req);
+export const simulateNetworkContention = (req: NetworkContentionRequest) =>
+  post<NetworkContentionRequest, NetworkContentionResponse>("/network/contention", req);

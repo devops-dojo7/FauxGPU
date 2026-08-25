@@ -411,3 +411,32 @@ class AutoscalingResponse(BaseModel):
     peak_replicas: int
     peak_backlog_requests: float
     peak_queue_delay_s: float
+
+
+class NetworkJobIn(BaseModel):
+    job_id: str
+    team: str
+    num_gpus: int = Field(..., gt=0)
+    payload_gb: float = Field(..., gt=0)
+
+
+class NetworkContentionRequest(BaseModel):
+    fabric_id: str
+    jobs: list[NetworkJobIn]
+
+
+class NetworkJobResultOut(BaseModel):
+    job_id: str
+    team: str
+    num_gpus: int
+    bandwidth_share_gbps: float
+    isolated_comm_s: float
+    contended_comm_s: float
+    slowdown_factor: float
+
+
+class NetworkContentionResponse(BaseModel):
+    fabric_id: str
+    fabric_bandwidth_gbps: float
+    total_gpus_sharing_fabric: int
+    jobs: list[NetworkJobResultOut]

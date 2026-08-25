@@ -438,6 +438,35 @@ export interface AutoscalingResponse {
   peak_queue_delay_s: number;
 }
 
+export interface NetworkJob {
+  job_id: string;
+  team: string;
+  num_gpus: number;
+  payload_gb: number;
+}
+
+export interface NetworkContentionRequest {
+  fabric_id: string;
+  jobs: NetworkJob[];
+}
+
+export interface NetworkJobResult {
+  job_id: string;
+  team: string;
+  num_gpus: number;
+  bandwidth_share_gbps: number;
+  isolated_comm_s: number;
+  contended_comm_s: number;
+  slowdown_factor: number;
+}
+
+export interface NetworkContentionResponse {
+  fabric_id: string;
+  fabric_bandwidth_gbps: number;
+  total_gpus_sharing_fabric: number;
+  jobs: NetworkJobResult[];
+}
+
 export interface ModelPreset extends ModelShape {
   id: string;
   label: string;
