@@ -1,5 +1,5 @@
 {
-  "title": "k6 Load Test — ErsatzGPU API",
+  "title": "k6 Load Test — FauxGPU API",
   "uid": "simgpu-k6-load-test",
   "tags": ["simgpu", "k6", "load-test"],
   "timezone": "browser",

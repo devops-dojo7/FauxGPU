@@ -1,4 +1,4 @@
-# Contributing to ErsatzGPU
+# Contributing to FauxGPU
 
 Thanks for considering a contribution. This is a learning tool for GPU
 training/inference math and Kubernetes GPU scheduling — contributions that

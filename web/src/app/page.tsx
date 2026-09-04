@@ -198,9 +198,9 @@ export default function Home() {
         <header className="mb-8 flex flex-col gap-6">
           <div>
             <div className="flex items-center gap-3">
-              <Image src="/logo.png" alt="ErsatzGPU logo" width={48} height={48} className="h-10 w-10 md:h-12 md:w-12 rounded-xl" priority />
+              <Image src="/logo.png" alt="FauxGPU logo" width={48} height={48} className="h-10 w-10 md:h-12 md:w-12 rounded-xl" priority />
               <h1 className="font-wordmark text-3xl md:text-4xl inline-block tracking-tight uppercase">
-                <span className="text-ink">ERSATZ</span>
+                <span className="text-ink">FAUX</span>
                 <span style={{ color: "#38e29b", textShadow: "0 0 18px rgba(56, 226, 155, 0.55)" }}>GPU</span>
               </h1>
             </div>

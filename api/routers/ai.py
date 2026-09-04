@@ -33,7 +33,7 @@ from engine.trace_replay import parse_trace_csv
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 _SYSTEM_PROMPT = (
-    "You are the embedded assistant for ErsatzGPU, a browser-based GPU cluster training/inference "
+    "You are the embedded assistant for FauxGPU, a browser-based GPU cluster training/inference "
     "simulator with no real GPU required. It has tabs for Training (VRAM/step-time/cost), Inference "
     "(llm-d serving, prefill/decode, PagedAttention, speculative decoding), Datacenter (scaled "
     "cluster topology), Compare GPUs/Models, a What-if Recommender, a Cost Dashboard, a "

@@ -1,13 +1,13 @@
-<img src="assets/logo.png" width="280px" alt="ErsatzGPU logo">
+<img src="assets/logo.png" width="280px" alt="FauxGPU logo">
 
-[![CI](https://github.com/devops-dojo7/ErsatzGPU/actions/workflows/ci.yml/badge.svg)](https://github.com/devops-dojo7/ErsatzGPU/actions/workflows/ci.yml)
-[![LICENSE](https://img.shields.io/github/license/devops-dojo7/ErsatzGPU.svg)](/LICENSE)
+[![CI](https://github.com/devops-dojo7/FauxGPU/actions/workflows/ci.yml/badge.svg)](https://github.com/devops-dojo7/FauxGPU/actions/workflows/ci.yml)
+[![LICENSE](https://img.shields.io/github/license/devops-dojo7/FauxGPU.svg)](/LICENSE)
 
-# ErsatzGPU
+# FauxGPU
 
 **Learn how a real GPU datacenter actually works, with zero GPUs.**
 
-ErsatzGPU simulates the math (VRAM, KV cache, topology, cost), the
+FauxGPU simulates the math (VRAM, KV cache, topology, cost), the
 Kubernetes scheduling (fake GPU device-plugins, MIG, a 100+ node
 KWOK-simulated fleet), and the observability stack (Grafana, Prometheus,
 Langfuse) of a frontier-lab-scale GPU cluster — so anyone can learn
@@ -25,13 +25,13 @@ burst spikes decode latency on a colocated GPU pool, or what it's like to
 watch a fleet of nodes register in Kubernetes and schedule workloads
 against them.
 
-ErsatzGPU closes that gap. Every number is computed from the same formulas
+FauxGPU closes that gap. Every number is computed from the same formulas
 that govern real hardware — not hardcoded or looked up — so the simulator
 responds correctly to input changes (bigger model, different GPU, more
 nodes) the same way a real cluster would. The K8s layer schedules real
 pods against real (fake) GPU resources, and the observability stack is a
 real Grafana/Prometheus/Langfuse deployment, not a mockup — only the GPUs
-themselves are ersatz.
+themselves are faux.
 
 ## Use case
 
@@ -336,7 +336,7 @@ ramp. Regenerate it the same way as the other two after editing:
 
 ## Roadmap, and contributing
 
-Live status board: [ErsatzGPU Roadmap](https://github.com/orgs/devops-dojo7/projects/1).
+Live status board: [FauxGPU Roadmap](https://github.com/orgs/devops-dojo7/projects/1).
 
 Built and verified so far: the calculation engine and FastAPI service;
 the Next.js site; the K3s fake-GPU device-plugin layer; the llm-d-style

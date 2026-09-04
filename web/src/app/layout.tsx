@@ -25,7 +25,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Heavy condensed sans for the ERSATZGPU wordmark only — matches the logo's
+// Heavy condensed sans for the FAUXGPU wordmark only — matches the logo's
 // blocky lockup, distinct from the EB Garamond used for editorial headings.
 const wordmark = Archivo_Black({
   variable: "--font-wordmark",
@@ -34,7 +34,7 @@ const wordmark = Archivo_Black({
 });
 
 export const metadata: Metadata = {
-  title: "ErsatzGPU",
+  title: "FauxGPU",
   description: "Learn GPU VRAM, KV cache, and cluster topology without needing real hardware.",
 };
 
@@ -76,7 +76,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                   </a>{" "}
                   · Open source under the{" "}
                   <a
-                    href="https://github.com/devops-dojo7/ErsatzGPU/blob/main/LICENSE"
+                    href="https://github.com/devops-dojo7/FauxGPU/blob/main/LICENSE"
                     target="_blank"
                     rel="noreferrer"
                     className="text-body-strong hover:text-ink transition-colors"
@@ -85,7 +85,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                   </a>
                 </span>
                 <a
-                  href="https://github.com/devops-dojo7/ErsatzGPU"
+                  href="https://github.com/devops-dojo7/FauxGPU"
                   target="_blank"
                   rel="noreferrer"
                   className="text-body-strong hover:text-ink transition-colors"

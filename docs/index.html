@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ErsatzGPU — Learn how a real GPU datacenter works, with zero GPUs</title>
+<title>FauxGPU — Learn how a real GPU datacenter works, with zero GPUs</title>
 <meta name="description" content="Simulate GPU training, inference, Kubernetes scheduling, and the observability stack of a frontier-lab GPU datacenter, with zero real GPUs required.">
 <link rel="icon" href="logo.png">
-<meta property="og:title" content="ErsatzGPU">
+<meta property="og:title" content="FauxGPU">
 <meta property="og:description" content="Learn how a real GPU datacenter actually works, with zero GPUs.">
-<meta property="og:image" content="https://devops-dojo7.github.io/ErsatzGPU/logo.png">
+<meta property="og:image" content="https://devops-dojo7.github.io/FauxGPU/logo.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -181,14 +181,14 @@
 
 <nav class="top">
   <div class="wrap">
-    <div class="brand"><img src="logo.png" alt=""> ErsatzGPU</div>
+    <div class="brand"><img src="logo.png" alt=""> FauxGPU</div>
     <div class="links">
       <a href="#why">Why</a>
       <a href="#how">How it works</a>
       <a href="#observability">Observability</a>
       <a href="#ecosystem">Ecosystem</a>
       <a href="#roadmap">Roadmap</a>
-      <a class="btn btn-ghost" href="https://github.com/devops-dojo7/ErsatzGPU" target="_blank" rel="noopener">GitHub</a>
+      <a class="btn btn-ghost" href="https://github.com/devops-dojo7/FauxGPU" target="_blank" rel="noopener">GitHub</a>
     </div>
   </div>
 </nav>
@@ -198,17 +198,17 @@
     <div>
       <span class="eyebrow">● Open source · MIT licensed</span>
       <h1 class="headline">Learn how a real GPU<br><span class="grad">datacenter</span> actually works.<br>With zero GPUs.</h1>
-      <p class="sub">ErsatzGPU simulates the math, the Kubernetes scheduling, and the observability stack of a
+      <p class="sub">FauxGPU simulates the math, the Kubernetes scheduling, and the observability stack of a
         frontier-lab-scale GPU cluster — VRAM, KV cache, topology, MIG, a 100+ node fleet, Grafana, Prometheus,
         Langfuse — so you can learn distributed training and inference internals on a laptop.</p>
       <div class="cta-row">
-        <a class="btn btn-primary" href="https://github.com/devops-dojo7/ErsatzGPU" target="_blank" rel="noopener">View on GitHub →</a>
-        <a class="btn btn-ghost" href="https://github.com/devops-dojo7/ErsatzGPU#quick-start" target="_blank" rel="noopener">Quick start</a>
+        <a class="btn btn-primary" href="https://github.com/devops-dojo7/FauxGPU" target="_blank" rel="noopener">View on GitHub →</a>
+        <a class="btn btn-ghost" href="https://github.com/devops-dojo7/FauxGPU#quick-start" target="_blank" rel="noopener">Quick start</a>
       </div>
       <p class="trust-line">Every number comes from real formulas, not lookup tables — run <code>.venv/bin/pytest tests/ -v</code> and see for yourself.</p>
     </div>
     <div class="hero-art">
-      <img src="logo.png" alt="ErsatzGPU logo — a stylized GPU card">
+      <img src="logo.png" alt="FauxGPU logo — a stylized GPU card">
     </div>
   </div>
 </header>
@@ -217,7 +217,7 @@
   <div class="wrap">
     <div class="demo-frame">
       <div class="demo-chrome"><span></span><span></span><span></span></div>
-      <img src="demo-screenshot.jpg" alt="ErsatzGPU Training tab showing a DeepSeek-V3 671B VRAM breakdown that doesn't fit on a single H200, with real cost and step-time numbers" loading="lazy">
+      <img src="demo-screenshot.jpg" alt="FauxGPU Training tab showing a DeepSeek-V3 671B VRAM breakdown that doesn't fit on a single H200, with real cost and step-time numbers" loading="lazy">
     </div>
     <p class="demo-caption">Real formulas, not a mockup — DeepSeek-V3 671B genuinely doesn't fit on one H200 in bf16, and the site tells you so.</p>
   </div>
@@ -228,10 +228,10 @@
     <p class="kicker">Why this project</p>
     <h2>GPU scarcity is the biggest barrier to actually learning this stuff.</h2>
     <p class="lead">You can read papers about NVLink topology, KV-cache growth, or disaggregated prefill/decode
-      serving — but without real GPUs you can't <em>feel</em> any of it. ErsatzGPU closes that gap: every number is
+      serving — but without real GPUs you can't <em>feel</em> any of it. FauxGPU closes that gap: every number is
       computed from the same formulas that govern real hardware, the K8s layer schedules real pods against real
       (fake) GPU resources, and the observability stack is a real Grafana/Prometheus/Langfuse deployment. Only the
-      GPUs themselves are ersatz.</p>
+      GPUs themselves are faux.</p>
     <div class="why-grid">
       <div class="card">
         <span class="icon">🧮</span>
@@ -380,8 +380,8 @@
       </div>
     </div>
     <p style="margin-top:28px; font-size:14.5px; color:var(--text-dim);">
-      Live status board: <a href="https://github.com/orgs/devops-dojo7/projects/1" target="_blank" rel="noopener">ErsatzGPU Roadmap</a> ·
-      Contributions welcome — see <a href="https://github.com/devops-dojo7/ErsatzGPU/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">CONTRIBUTING.md</a>
+      Live status board: <a href="https://github.com/orgs/devops-dojo7/projects/1" target="_blank" rel="noopener">FauxGPU Roadmap</a> ·
+      Contributions welcome — see <a href="https://github.com/devops-dojo7/FauxGPU/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">CONTRIBUTING.md</a>
     </p>
   </div>
 </section>
@@ -391,17 +391,17 @@
     <h2>Spin up a mock datacenter in one command.</h2>
     <p>No GPU, no cloud bill, no waiting on quota approval.</p>
     <div class="cta-row" style="justify-content:center;">
-      <a class="btn btn-primary" href="https://github.com/devops-dojo7/ErsatzGPU" target="_blank" rel="noopener">Get started on GitHub →</a>
+      <a class="btn btn-primary" href="https://github.com/devops-dojo7/FauxGPU" target="_blank" rel="noopener">Get started on GitHub →</a>
     </div>
   </div>
 </div>
 
 <footer>
   <div class="wrap">
-    <span>© 2026 ErsatzGPU · MIT License</span>
+    <span>© 2026 FauxGPU · MIT License</span>
     <div class="flinks">
-      <a href="https://github.com/devops-dojo7/ErsatzGPU" target="_blank" rel="noopener">GitHub</a>
-      <a href="https://github.com/devops-dojo7/ErsatzGPU/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+      <a href="https://github.com/devops-dojo7/FauxGPU" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/devops-dojo7/FauxGPU/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
       <a href="https://github.com/orgs/devops-dojo7/projects/1" target="_blank" rel="noopener">Roadmap</a>
     </div>
   </div>

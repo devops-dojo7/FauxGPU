@@ -10,7 +10,7 @@
       "y": 15,
       "width": 296.3812561035156,
       "height": 35,
-      "text": "How ErsatzGPU is built",
+      "text": "How FauxGPU is built",
       "fontSize": 28,
       "strokeColor": "#e5e5e5",
       "version": 7,
@@ -36,7 +36,7 @@
       "textAlign": "left",
       "verticalAlign": "top",
       "containerId": null,
-      "originalText": "How ErsatzGPU is built",
+      "originalText": "How FauxGPU is built",
       "autoResize": true,
       "lineHeight": 1.25
     },

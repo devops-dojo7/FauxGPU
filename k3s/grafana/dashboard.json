@@ -1,6 +1,6 @@
 {
   "dashboard": {
-    "title": "ErsatzGPU",
+    "title": "FauxGPU",
     "tags": ["simgpu"],
     "timezone": "browser",
     "schemaVersion": 39,

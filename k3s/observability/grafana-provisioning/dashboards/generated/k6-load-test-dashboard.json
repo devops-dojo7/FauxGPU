@@ -1,5 +1,5 @@
 {
-  "title": "k6 Load Test \u2014 ErsatzGPU API",
+  "title": "k6 Load Test \u2014 FauxGPU API",
   "uid": "simgpu-k6-load-test",
   "tags": [
     "simgpu",

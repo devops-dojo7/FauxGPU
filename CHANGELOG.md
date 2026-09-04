@@ -52,7 +52,7 @@ small UX/observability fixes.
   sharding independent of the configured tensor/pipeline-parallel degree,
   and points a capacity overflow at the Datacenter tab to scale the cluster
   up.
-- The ErsatzGPU Grafana dashboard now surfaces the simulated GPU's
+- The FauxGPU Grafana dashboard now surfaces the simulated GPU's
   human-readable model name (previously only the catalog id was available),
   plus a new "Active GPU / Runs" table panel.
 
@@ -77,10 +77,10 @@ applies — this entry summarizes everything the app already did going into
 - Kubernetes/K3s layer: a fake GPU device plugin, Helm chart, GPU Operator
   Playground (`run-ai/fake-gpu-operator`), and Datacenter Mode with
   KWOK-simulated large node pools.
-- Observability stack: Prometheus, a custom "ErsatzGPU" Grafana dashboard,
+- Observability stack: Prometheus, a custom "FauxGPU" Grafana dashboard,
   the vendor NVIDIA DCGM dashboard, k6 load testing (and its own Grafana
   dashboard), and Langfuse tracing for inference requests.
 - GPU catalog expanded to 34 GPUs across NVIDIA, AMD, Intel, AWS, Huawei,
   Tenstorrent, Meta, and Microsoft, and a 60-entry model preset list
   (dense, GQA, MoE, and MoE+MLA architectures).
-- Rebranded to ErsatzGPU, with an editorial UI redesign and dark mode.
+- Rebranded to FauxGPU, with an editorial UI redesign and dark mode.
