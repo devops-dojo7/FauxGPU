@@ -77,6 +77,16 @@ fleet:
   numNodes: 100
   nodeCpu: "32"
   nodeMemory: 128Gi
+  # Which fake-gpu-operator node pool the fleet's nodes join — same
+  # external topology.nodePools.<name> dependency as fakeGpuOperator.nodePool
+  # above. Empty (default) falls back to fakeGpuOperator.nodePool, which is
+  # fine for the single-pool manual walkthrough in README, but silently
+  # lands on fake-gpu-operator's own built-in "default" pool (Tesla-K80, 2
+  # GPUs) if you're layering fleet.enabled on top of scripts/playground-up.sh's
+  # heterogeneous h100/a100/b200 setup, which never configures "default" —
+  # set this to one of those pool names (e.g. "h100") to get a coherent,
+  # already-configured GPU model instead.
+  nodePool: ""
 
 api:
   image: simgpu/api:dev

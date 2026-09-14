@@ -248,6 +248,23 @@ helm upgrade simgpu k3s/helm/simgpu \
 kubectl get nodes -l type=kwok
 ```
 
+**Gotcha, confirmed the hard way (again):** the fleet's nodes join whatever
+pool `fakeGpuOperator.nodePool` names (`"default"` unless you've changed
+it) — fine for the single-pool walkthrough above, which already points
+`topology.nodePools.default` at a real GPU model. But layer `fleet.enabled`
+on top of `scripts/playground-up.sh`'s heterogeneous h100/a100/b200 setup
+instead, and `"default"` was never configured on the *external*
+fake-gpu-operator chart, so the fleet's nodes silently fall back to *its*
+own built-in default (`Tesla-K80`, 2 GPUs) — real `nvidia.com/gpu` capacity
+and labels, just the wrong model. Point the fleet at one of the pools
+`playground-up.sh` actually configured instead:
+
+```bash
+helm upgrade simgpu k3s/helm/simgpu \
+  --set gpuBackend=fake-gpu-operator --set fleet.enabled=true \
+  --set fleet.numNodes=100 --set fleet.nodePool=h100
+```
+
 ## Observability and WebUI
 
 ### WebUI
