@@ -103,7 +103,13 @@ Or run the pieces directly without Docker:
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/pytest tests/ -v
-.venv/bin/uvicorn api.main:app --reload
+
+# AI_SETTINGS_DB_PATH defaults to /data/ai_settings.db (a writable path
+# inside the Docker/K8s container, or the ai_settings_data volume in
+# docker-compose.yml) — override it here since plain `/data` on your host
+# machine likely isn't writable, or the AI assistant/settings endpoints
+# will 500.
+AI_SETTINGS_DB_PATH=./data/ai_settings.db .venv/bin/uvicorn api.main:app --reload
 
 cd web
 npm install

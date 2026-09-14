@@ -43,6 +43,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       className={`${inter.variable} ${displaySerif.variable} ${geistMono.variable} ${wordmark.variable} h-full antialiased`}
+      // The theme-init script below sets data-theme on this element directly,
+      // before hydration, specifically so a saved theme never flashes light-
+      // then-dark — React's hydration diff has no way to know that mutation
+      // was intentional, so it flags a mismatch that isn't a real bug. This
+      // is the standard, documented fix for exactly this pattern (see React's
+      // suppressHydrationWarning docs and e.g. next-themes' own approach).
+      suppressHydrationWarning
     >
       <head>
         {/* Runs before paint so an explicit saved theme (or system preference,
