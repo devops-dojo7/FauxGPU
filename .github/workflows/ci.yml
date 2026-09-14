@@ -33,6 +33,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npm run lint
+      - run: npm run check:presets
       - run: npm run build
 
   # The full k3d e2e is slow (spins up a real cluster) — only run it on the
