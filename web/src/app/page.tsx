@@ -18,6 +18,7 @@ import { LiveTrainingPanel } from "@/components/LiveTrainingPanel";
 import { InferencePanel, InferenceInputsState } from "@/components/InferencePanel";
 import { LiveInferencePlayground } from "@/components/LiveInferencePlayground";
 import { MultiRequestPlayground } from "@/components/MultiRequestPlayground";
+import { RealInferenceServerPanel } from "@/components/RealInferenceServerPanel";
 import { SpeculativeDecodingPanel } from "@/components/SpeculativeDecodingPanel";
 import { ThroughputCurvePanel } from "@/components/ThroughputCurvePanel";
 import { ParallelismCurvePanel } from "@/components/ParallelismCurvePanel";
@@ -352,6 +353,7 @@ export default function Home() {
               precision={inferenceInputs.precision}
               tpDegree={inferenceInputs.tpDegree}
             />
+            <RealInferenceServerPanel gpuId={gpuId} />
             <SpeculativeDecodingPanel targetModel={modelState.model} gpu={gpu} precision={inferenceInputs.precision} />
           </div>
         )}

@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 import uuid
 
+import httpx
 from fastapi import APIRouter, HTTPException
 from sse_starlette.sse import EventSourceResponse
 
@@ -19,6 +21,8 @@ from api import k8s_launcher, langfuse_client
 from api.schemas import (
     InferenceStreamRequest,
     K8sAvailabilityResponse,
+    K8sCompletionRequest,
+    K8sCompletionResult,
     LaunchInferenceServerRequest,
     LaunchInferenceServerResponse,
 )
@@ -43,6 +47,55 @@ def launch_inference_k8s_server(req: LaunchInferenceServerRequest):
     except Exception as e:  # k8s client errors, RBAC denials, etc.
         raise HTTPException(status_code=502, detail=f"Failed to create inference server: {e}") from e
     return LaunchInferenceServerResponse(name=name)
+
+
+@router.delete("/k8s-server/{name}")
+def stop_inference_k8s_server(name: str):
+    try:
+        k8s_launcher.delete_inference_job(name)
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except Exception as e:  # k8s client errors, already-deleted, etc.
+        raise HTTPException(status_code=502, detail=f"Failed to delete inference server: {e}") from e
+    return {"status": "deleted"}
+
+
+@router.post("/k8s-server/{name}/complete", response_model=K8sCompletionResult)
+async def complete_on_k8s_server(name: str, req: K8sCompletionRequest):
+    """Proxies a real request to a launched inference server pod, from
+    inside the cluster — the bare service `name` resolves via in-cluster
+    DNS (same namespace as the API pod), so no port-forward is needed for
+    this path specifically. This is what lets the website itself show a
+    real round trip; a real external client (curl, the openai SDK) can
+    still reach the same server directly via `kubectl port-forward`.
+    """
+    if not k8s_launcher.inference_available():
+        raise HTTPException(status_code=409, detail="inference server proxying is not available (not running in-cluster)")
+
+    url = f"http://{name}:9000/v1/completions"
+    start = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=3.0, read=60.0, write=5.0, pool=5.0)) as http_client:
+            resp = await http_client.post(url, json={"prompt": req.prompt, "max_tokens": req.max_tokens})
+    except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+        raise HTTPException(
+            status_code=503, detail="Inference server is still starting (or not reachable yet) — try again in a few seconds."
+        ) from e
+    except httpx.TimeoutException as e:
+        raise HTTPException(status_code=504, detail="Inference server took too long to respond.") from e
+    round_trip_ms = (time.monotonic() - start) * 1000
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Inference server returned {resp.status_code}: {resp.text[:200]}")
+
+    data = resp.json()
+    return K8sCompletionResult(
+        text=data["choices"][0]["text"],
+        ttft_s=data["simgpu"]["ttft_s"],
+        tokens_per_sec=data["simgpu"]["tokens_per_sec"],
+        cost_usd=data["simgpu"]["cost_usd"],
+        round_trip_ms=round_trip_ms,
+    )
 
 
 async def _stream(req: InferenceStreamRequest):

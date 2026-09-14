@@ -19,7 +19,11 @@ import type {
   InferenceResponse,
   InferenceStreamRequest,
   K8sAvailability,
+  K8sCompletionRequest,
+  K8sCompletionResult,
   LangfuseStatus,
+  LaunchInferenceServerRequest,
+  LaunchInferenceServerResponse,
   LaunchK8sJobResponse,
   RecommendNlRequest,
   RecommendRequest,
@@ -191,6 +195,12 @@ export const resolveTopology = (req: TopologyRequest) =>
   post<TopologyRequest, TopologyResponse>("/topology", req);
 export const calculateInference = (req: InferenceRequest) =>
   post<InferenceRequest, InferenceResponse>("/calculate/inference", req);
+export const fetchInferenceK8sAvailable = () => get<K8sAvailability>("/inference/k8s-available");
+export const launchInferenceK8sServer = (req: LaunchInferenceServerRequest) =>
+  post<LaunchInferenceServerRequest, LaunchInferenceServerResponse>("/inference/launch-k8s-server", req);
+export const stopInferenceK8sServer = (name: string) => del(`/inference/k8s-server/${encodeURIComponent(name)}`);
+export const completeOnK8sServer = (name: string, req: K8sCompletionRequest) =>
+  post<K8sCompletionRequest, K8sCompletionResult>(`/inference/k8s-server/${encodeURIComponent(name)}/complete`, req);
 export const fetchRuns = () => get<RunSummary[]>("/runs");
 export const fetchRun = (runId: string) => get<RunDetail>(`/runs/${encodeURIComponent(runId)}`);
 export const simulateRun = (req: SimulateRunRequest) => post<SimulateRunRequest, RunSummary>("/runs/simulate", req);

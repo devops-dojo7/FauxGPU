@@ -65,6 +65,34 @@ def test_launch_inference_job_builds_manifests_when_in_cluster(monkeypatch):
     assert svc_body["metadata"]["name"] == name
 
 
+def test_delete_inference_job_raises_when_unavailable():
+    with pytest.raises(RuntimeError, match="not available"):
+        k8s_launcher.delete_inference_job("simgpu-inference-abc123")
+
+
+def test_delete_inference_job_calls_k8s_apis(monkeypatch):
+    monkeypatch.setattr(k8s_launcher, "_in_cluster", True)
+    monkeypatch.setenv("INFERENCE_SERVER_IMAGE", "simgpu/inference-server:dev")
+
+    deleted = {}
+
+    class FakeAppsV1Api:
+        def delete_namespaced_deployment(self, name, namespace):
+            deleted["deployment"] = (name, namespace)
+
+    class FakeCoreV1Api:
+        def delete_namespaced_service(self, name, namespace):
+            deleted["service"] = (name, namespace)
+
+    monkeypatch.setattr(k8s_launcher.client, "AppsV1Api", FakeAppsV1Api)
+    monkeypatch.setattr(k8s_launcher.client, "CoreV1Api", FakeCoreV1Api)
+
+    k8s_launcher.delete_inference_job("simgpu-inference-abc123")
+
+    assert deleted["deployment"] == ("simgpu-inference-abc123", "default")
+    assert deleted["service"] == ("simgpu-inference-abc123", "default")
+
+
 def test_launch_inference_job_passes_langfuse_env_when_set(monkeypatch):
     monkeypatch.setattr(k8s_launcher, "_in_cluster", True)
     monkeypatch.setenv("INFERENCE_SERVER_IMAGE", "simgpu/inference-server:dev")

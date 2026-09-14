@@ -1,9 +1,12 @@
-"""Launches real Kubernetes Jobs for the K3s trainer, from inside the API pod.
+"""Launches real Kubernetes workloads from inside the API pod: batch/v1 Jobs
+for the K3s trainer, and apps/v1 Deployments + Service for the long-running
+k3s/inference-server.
 
 This only works when the API is actually running in a cluster with the RBAC
 granted by k3s/helm/simgpu/templates/rbac.yaml (ServiceAccount + Role letting
-it create batch/v1 Jobs) — running `uvicorn api.main:app` locally, this is
-simply unavailable, and callers should check `is_available()` first.
+it create/delete Jobs, Deployments, and Services) — running
+`uvicorn api.main:app` locally, this is simply unavailable, and callers
+should check `is_available()`/`inference_available()` first.
 """
 
 from __future__ import annotations
@@ -170,3 +173,12 @@ def launch_inference_job(model_preset: str, gpu_id: str, precision: str) -> str:
     client.AppsV1Api().create_namespaced_deployment(namespace=namespace, body=deployment)
     client.CoreV1Api().create_namespaced_service(namespace=namespace, body=service)
     return name
+
+
+def delete_inference_job(name: str) -> None:
+    """Stops a running inference server Deployment + its Service."""
+    if not inference_available():
+        raise RuntimeError("inference server deletion is not available (not running in-cluster, or INFERENCE_SERVER_IMAGE unset)")
+    namespace = _namespace()
+    client.AppsV1Api().delete_namespaced_deployment(name=name, namespace=namespace)
+    client.CoreV1Api().delete_namespaced_service(name=name, namespace=namespace)

@@ -332,6 +332,19 @@ class LaunchInferenceServerResponse(BaseModel):
     name: str
 
 
+class K8sCompletionRequest(BaseModel):
+    prompt: str
+    max_tokens: int = 80
+
+
+class K8sCompletionResult(BaseModel):
+    text: str
+    ttft_s: float
+    tokens_per_sec: float
+    cost_usd: float
+    round_trip_ms: float
+
+
 class LaunchK8sJobResponse(BaseModel):
     job_name: str
     run_id: str

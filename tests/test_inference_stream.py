@@ -1,9 +1,10 @@
 import json
 
 import pytest
+from fastapi import HTTPException
 
-from api.routers.inference_stream import _stream
-from api.schemas import InferenceStreamRequest, ModelShapeIn
+from api.routers.inference_stream import _stream, complete_on_k8s_server, stop_inference_k8s_server
+from api.schemas import InferenceStreamRequest, K8sCompletionRequest, ModelShapeIn
 
 MODEL = ModelShapeIn(params=6.74e9, num_layers=32, hidden_dim=4096, num_heads=32, head_dim=128)
 
@@ -66,3 +67,16 @@ async def test_stream_zero_output_tokens_emits_no_token_events():
     assert names == ["start", "ttft", "done"]
     _, done_data = events[-1]
     assert done_data["tokens_per_sec"] == 0.0
+
+
+def test_stop_inference_k8s_server_raises_409_when_unavailable():
+    with pytest.raises(HTTPException) as exc_info:
+        stop_inference_k8s_server("simgpu-inference-abc123")
+    assert exc_info.value.status_code == 409
+
+
+@pytest.mark.anyio
+async def test_complete_on_k8s_server_raises_409_when_unavailable():
+    with pytest.raises(HTTPException) as exc_info:
+        await complete_on_k8s_server("simgpu-inference-abc123", K8sCompletionRequest(prompt="hi"))
+    assert exc_info.value.status_code == 409

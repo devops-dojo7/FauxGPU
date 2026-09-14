@@ -250,6 +250,29 @@ export interface LaunchK8sJobResponse {
   run_id: string;
 }
 
+export interface LaunchInferenceServerRequest {
+  model_preset: string;
+  gpu_id: string;
+  precision: string;
+}
+
+export interface LaunchInferenceServerResponse {
+  name: string;
+}
+
+export interface K8sCompletionRequest {
+  prompt: string;
+  max_tokens: number;
+}
+
+export interface K8sCompletionResult {
+  text: string;
+  ttft_s: number;
+  tokens_per_sec: number;
+  cost_usd: number;
+  round_trip_ms: number;
+}
+
 export interface RecommendRequest {
   model: ModelShape;
   precision: string;

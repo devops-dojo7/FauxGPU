@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { ModelPresetTier, ModelShape } from "@/lib/types";
 import { isMoe, usesMla } from "@/lib/simEngine";
 import { formatCompact } from "@/lib/format";
@@ -162,6 +162,55 @@ export function ModelArchBadges({ model }: { model: ModelShape }) {
           {b}
         </BadgePill>
       ))}
+    </div>
+  );
+}
+
+/** A terminal-styled, copyable command block. Presentational only — this
+ * mirrors scripts/playground-*.sh and the README's k3d walkthrough, it
+ * never executes anything itself. Wiring a browser button to run commands
+ * on the host would need an unauthenticated local agent process; this app
+ * has no auth anywhere, so that's a footgun this component deliberately
+ * avoids. */
+export function TerminalBlock({ title, lines }: { title: string; lines: string[] }) {
+  const [copied, setCopied] = useState(false);
+  const text = lines.filter((l) => !l.startsWith("#")).join("\n");
+
+  const copy = () => {
+    navigator.clipboard
+      ?.writeText(text)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {});
+  };
+
+  return (
+    <div className="rounded-lg overflow-hidden border border-hairline-strong">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-surface-strong">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-red-400/70" />
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
+          </div>
+          <span className="text-xs text-muted font-mono">{title}</span>
+        </div>
+        <button
+          onClick={copy}
+          className="text-xs font-medium text-muted hover:text-ink transition-colors"
+        >
+          {copied ? "Copied!" : "Copy"}
+        </button>
+      </div>
+      <pre className="text-xs font-mono p-3 overflow-x-auto bg-[#0b0e14] text-emerald-300 leading-relaxed">
+        {lines.map((line, i) => (
+          <div key={i} className={line.startsWith("#") ? "text-slate-500" : undefined}>
+            {line === "" ? " " : line.startsWith("#") ? line : `$ ${line}`}
+          </div>
+        ))}
+      </pre>
     </div>
   );
 }
