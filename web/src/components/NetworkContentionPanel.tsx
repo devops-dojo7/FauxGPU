@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { fetchFabrics, simulateNetworkContention } from "@/lib/api";
+import { fetchFabrics, fetchRuns, simulateNetworkContention } from "@/lib/api";
 import { Fabric, NetworkContentionResponse } from "@/lib/types";
 import { Card, Field, NumberInput, Select, Stat } from "./ui";
 
@@ -100,6 +100,9 @@ export function NetworkContentionPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [loadingRuns, setLoadingRuns] = useState(false);
+  const [loadRunsError, setLoadRunsError] = useState<string | null>(null);
+
   useEffect(() => {
     fetchFabrics()
       .then((list) => {
@@ -119,6 +122,40 @@ export function NetworkContentionPanel() {
     teams.forEach((t, i) => map.set(t, TEAM_COLORS[i % TEAM_COLORS.length]));
     return map;
   }, [rows]);
+
+  /** Populates the job table from whatever real training runs are
+   * currently active (Training tab's in-process simulator or a real k8s
+   * Job) instead of manual entry — the same live contention math this
+   * calculator's formula now also drives for real, on those exact runs
+   * (see api/routers/runs.py's fabric-contention endpoint). Picks
+   * whichever fabric the most currently-running jobs happen to share. */
+  const loadLiveRuns = () => {
+    setLoadingRuns(true);
+    setLoadRunsError(null);
+    fetchRuns()
+      .then((runs) => {
+        const running = runs.filter((r) => r.status === "running" && r.meta?.fabric_id);
+        if (running.length === 0) {
+          setLoadRunsError("No running jobs with a fabric assigned right now — start one from the Training tab first.");
+          return;
+        }
+        const counts = new Map<string, number>();
+        for (const r of running) {
+          const fid = r.meta!.fabric_id!;
+          counts.set(fid, (counts.get(fid) ?? 0) + 1);
+        }
+        const topFabric = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+        const onFabric = running.filter((r) => r.meta!.fabric_id === topFabric);
+        setFabricId(topFabric);
+        setRows(
+          onFabric.map((r) =>
+            makeRow({ jobId: r.run_id, team: r.meta!.model, numGpus: r.meta!.total_gpus, payloadGb: r.meta!.payload_gb }),
+          ),
+        );
+      })
+      .catch((e) => setLoadRunsError(e.message))
+      .finally(() => setLoadingRuns(false));
+  };
 
   const runSimulation = () => {
     setLoading(true);
@@ -140,17 +177,28 @@ export function NetworkContentionPanel() {
           each job&apos;s gradient all-reduce bandwidth gets a fair share proportional to its GPU count, instead of
           the full fabric bandwidth every job gets today when running alone.
         </p>
-        <div className="max-w-sm">
-          <Field label="Fabric">
-            <Select value={fabricId} onChange={setFabricId}>
-              {fabrics.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name} ({f.bandwidth_gbps} GB/s)
-                </option>
-              ))}
-            </Select>
-          </Field>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="max-w-sm">
+            <Field label="Fabric">
+              <Select value={fabricId} onChange={setFabricId}>
+                {fabrics.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name} ({f.bandwidth_gbps} GB/s)
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <button
+            onClick={loadLiveRuns}
+            disabled={loadingRuns}
+            className="px-4 py-1.5 rounded-full text-sm font-medium border border-hairline-strong disabled:opacity-40 hover:bg-surface-strong transition-colors"
+            title="Replaces the job table below with whatever training runs are actually running right now"
+          >
+            {loadingRuns ? "Loading…" : "Load live running jobs"}
+          </button>
         </div>
+        {loadRunsError && <p className="text-sm text-error mt-3">{loadRunsError}</p>}
       </Card>
 
       <Card title="Concurrent jobs sharing this fabric">

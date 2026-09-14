@@ -23,7 +23,7 @@ import urllib.request
 sys.path.insert(0, "/app")
 
 from engine.compute import estimate_step_time  # noqa: E402
-from engine.memory import ModelShape  # noqa: E402
+from engine.memory import ModelShape, bytes_per_param  # noqa: E402
 from engine.topology import build_topology  # noqa: E402
 
 MODEL_PRESETS = {
@@ -47,6 +47,21 @@ def report(api_url, run_id, path, payload):
         urllib.request.urlopen(req, timeout=3).close()
     except (urllib.error.URLError, OSError) as e:
         print(json.dumps({"event": "report_failed", "path": path, "error": str(e)}), flush=True)
+
+
+def fetch_json(api_url, run_id, path):
+    """Same best-effort philosophy as report() above, the other direction —
+    a stopped/unreachable API never fails the run, callers just fall back
+    to their own locally-computed pacing on any failure (None return)."""
+    if not api_url:
+        return None
+    url = f"{api_url.rstrip('/')}/runs/{run_id}{path}"
+    try:
+        with urllib.request.urlopen(url, timeout=3) as resp:
+            return json.loads(resp.read())
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
+        print(json.dumps({"event": "fetch_failed", "path": path, "error": str(e)}), flush=True)
+        return None
 
 
 def main():
@@ -84,6 +99,7 @@ def main():
 
     topo = build_topology(shape, gpu_id, gpus_per_node=gpus_per_node, num_nodes=num_nodes, fabric_id=fabric_id)
     step = estimate_step_time(model, topo, tokens_per_step=tokens_per_step, precision=precision)
+    payload_gb = model.params * bytes_per_param(precision) / 1e9
 
     start_payload = {
         "model": model_label,
@@ -94,6 +110,8 @@ def main():
         "communication_s_per_step": round(step.communication_s, 4),
         "total_s_per_step": round(step.total_s, 4),
         "total_steps": total_steps,
+        "fabric_id": fabric_id,
+        "payload_gb": round(payload_gb, 4),
     }
     print(json.dumps({"event": "start", "run_id": run_id, **start_payload}), flush=True)
     report(api_url, run_id, "/start", start_payload)
@@ -101,7 +119,19 @@ def main():
     start = time.time()
     tokens_seen = 0
     for i in range(1, total_steps + 1):
-        time.sleep(step.total_s / speedup)
+        # Poll for live fair-share bandwidth contention against whatever
+        # else currently shares this fabric — same formula the website's
+        # standalone Network Contention calculator uses, just fed this
+        # run's real, live neighbors instead of a manually-entered job
+        # list. Falls back to this pod's own fixed step.total_s (computed
+        # once above, isolated-bandwidth assumption) on any failure or
+        # when nothing else is currently sharing the fabric.
+        contention = fetch_json(api_url, run_id, "/fabric-contention")
+        if contention and contention.get("jobs_sharing_fabric", 0) > 0:
+            step_s = step.compute_s + contention["communication_s"]
+        else:
+            step_s = step.total_s
+        time.sleep(step_s / speedup)
         tokens_seen += tokens_per_step
         step_payload = {"step": i, "tokens_seen": tokens_seen, "elapsed_s": round(time.time() - start, 2)}
         print(json.dumps({"event": "step", "run_id": run_id, **step_payload}), flush=True)

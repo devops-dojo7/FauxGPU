@@ -106,5 +106,27 @@ class RunsStore:
         with self._lock:
             return sorted(self._runs.values(), key=lambda r: r.started_at, reverse=True)
 
+    def active_on_fabric(self, fabric_id: str, exclude_run_id: str | None = None) -> list[dict]:
+        """Other currently-running runs sharing the given fabric — enough
+        info (run_id/total_gpus/payload_gb) to build a
+        engine.network_contention.NetworkJob per run for a fair-share
+        contention calculation.
+        """
+        with self._lock:
+            matches = []
+            for run in self._runs.values():
+                if run.run_id == exclude_run_id or run.status != "running" or run.meta is None:
+                    continue
+                if run.meta.get("fabric_id") != fabric_id:
+                    continue
+                matches.append(
+                    {
+                        "run_id": run.run_id,
+                        "total_gpus": run.meta.get("total_gpus", 1),
+                        "payload_gb": run.meta.get("payload_gb", 0.0),
+                    }
+                )
+            return matches
+
 
 store = RunsStore()

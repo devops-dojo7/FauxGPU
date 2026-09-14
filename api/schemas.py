@@ -246,6 +246,15 @@ class RunStartRequest(BaseModel):
     communication_s_per_step: float
     total_s_per_step: float
     total_steps: int
+    fabric_id: str | None = None
+    payload_gb: float = 0.0
+
+
+class FabricContentionStatus(BaseModel):
+    communication_s: float
+    bandwidth_share_gbps: float
+    gpus_sharing_fabric: int
+    jobs_sharing_fabric: int
 
 
 class RunStepRequest(BaseModel):

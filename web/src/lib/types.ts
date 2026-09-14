@@ -158,6 +158,15 @@ export interface RunMeta {
   communication_s_per_step: number;
   total_s_per_step: number;
   total_steps: number;
+  fabric_id: string | null;
+  payload_gb: number;
+}
+
+export interface FabricContentionStatus {
+  communication_s: number;
+  bandwidth_share_gbps: number;
+  gpus_sharing_fabric: number;
+  jobs_sharing_fabric: number;
 }
 
 export interface RunStep {

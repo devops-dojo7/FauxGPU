@@ -53,3 +53,33 @@ def test_add_checkpoint_event_appends_with_generated_id():
 def test_add_checkpoint_event_to_unknown_run_returns_none():
     store = RunsStore()
     assert store.add_checkpoint_event("nope", {"kind": "save", "step": 1, "size_gb": 1.0, "overhead_s": 0.1, "steps_lost": None}) is None
+
+
+def test_active_on_fabric_returns_other_running_runs_on_same_fabric():
+    store = RunsStore()
+    store.start("run-a", {"fabric_id": "infiniband-hdr", "total_gpus": 8, "payload_gb": 1.2})
+    store.start("run-b", {"fabric_id": "infiniband-hdr", "total_gpus": 16, "payload_gb": 2.4})
+
+    others = store.active_on_fabric("infiniband-hdr", exclude_run_id="run-a")
+
+    assert len(others) == 1
+    assert others[0] == {"run_id": "run-b", "total_gpus": 16, "payload_gb": 2.4}
+
+
+def test_active_on_fabric_excludes_different_fabric_and_finished_runs():
+    store = RunsStore()
+    store.start("same-fabric", {"fabric_id": "infiniband-hdr", "total_gpus": 8, "payload_gb": 1.0})
+    store.start("other-fabric", {"fabric_id": "roce-100g", "total_gpus": 8, "payload_gb": 1.0})
+    store.start("finished", {"fabric_id": "infiniband-hdr", "total_gpus": 8, "payload_gb": 1.0})
+    store.finish("finished")
+
+    others = store.active_on_fabric("infiniband-hdr", exclude_run_id="probe")
+
+    assert {o["run_id"] for o in others} == {"same-fabric"}
+
+
+def test_active_on_fabric_with_no_matches_returns_empty_list():
+    store = RunsStore()
+    store.start("run-a", {"fabric_id": "infiniband-hdr", "total_gpus": 8, "payload_gb": 1.0})
+    assert store.active_on_fabric("infiniband-hdr", exclude_run_id="run-a") == []
+    assert store.active_on_fabric("no-such-fabric") == []

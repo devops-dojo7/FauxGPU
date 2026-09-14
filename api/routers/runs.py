@@ -13,6 +13,7 @@ from api.schemas import (
     EconomicsPointOut,
     EconomicsResponse,
     EconomicsSummaryOut,
+    FabricContentionStatus,
     K8sAvailabilityResponse,
     LaunchK8sJobResponse,
     RunDetail,
@@ -21,7 +22,7 @@ from api.schemas import (
     RunSummary,
     SimulateRunRequest,
 )
-from engine.chaos import ChaosEvent, effective_step_seconds, effective_topology, is_active
+from engine.chaos import ChaosEvent, effective_topology, is_active, stall_multiplier
 from engine.checkpointing import (
     checkpoint_size_gb,
     checkpoint_write_seconds,
@@ -30,8 +31,9 @@ from engine.checkpointing import (
 )
 from engine.compute import estimate_step_time
 from engine.economics import compute_run_economics
-from engine.gpu_specs import get_gpu
-from engine.memory import ModelShape
+from engine.gpu_specs import get_fabric, get_gpu
+from engine.memory import ModelShape, bytes_per_param
+from engine.network_contention import NetworkJob, simulate_network_contention
 from engine.topology import build_topology
 
 _VALID_CHAOS_KINDS = {"xid_error", "nvlink_degradation", "node_drain"}
@@ -53,6 +55,56 @@ def _to_summary(run) -> RunSummary:
         started_at=run.started_at,
         updated_at=run.updated_at,
     )
+
+
+def _contended_communication_s(run_id: str, meta: dict) -> FabricContentionStatus | None:
+    """Live fair-share bandwidth contention against whatever *other* runs
+    currently share this run's fabric — reuses engine.network_contention's
+    unmodified standalone-calculator formula, just fed real live-run data
+    instead of a manually-entered job list. Returns None when there's
+    nothing to contend with (no fabric_id, or no other concurrent run on
+    it) — the caller keeps its own uncontended baseline in that case.
+    """
+    fabric_id = meta.get("fabric_id")
+    if not fabric_id:
+        return None
+    others = store.active_on_fabric(fabric_id, exclude_run_id=run_id)
+    if not others:
+        return None
+
+    fabric = get_fabric(fabric_id)
+    jobs = [NetworkJob(job_id=run_id, team="", num_gpus=meta.get("total_gpus", 1), payload_gb=meta.get("payload_gb", 0.0))]
+    jobs += [NetworkJob(job_id=o["run_id"], team="", num_gpus=o["total_gpus"], payload_gb=o["payload_gb"]) for o in others]
+    result = simulate_network_contention(fabric, jobs)
+    mine = next(j for j in result.jobs if j.job_id == run_id)
+
+    return FabricContentionStatus(
+        communication_s=mine.contended_comm_s,
+        bandwidth_share_gbps=mine.bandwidth_share_gbps,
+        gpus_sharing_fabric=result.total_gpus_sharing_fabric,
+        jobs_sharing_fabric=len(jobs),
+    )
+
+
+@router.get("/{run_id}/fabric-contention", response_model=FabricContentionStatus)
+def fabric_contention(run_id: str):
+    """Polled by the real k8s trainer pod (api_url set) before each step's
+    sleep, so its pacing reflects whatever else is currently sharing its
+    fabric — the same contention the in-process simulator applies to
+    itself directly, without a network round trip.
+    """
+    run = store.get(run_id)
+    if run is None or run.meta is None:
+        raise HTTPException(status_code=404, detail=f"Unknown run: {run_id!r}")
+    status = _contended_communication_s(run_id, run.meta)
+    if status is None:
+        return FabricContentionStatus(
+            communication_s=run.meta.get("communication_s_per_step", 0.0),
+            bandwidth_share_gbps=0.0,
+            gpus_sharing_fabric=run.meta.get("total_gpus", 1),
+            jobs_sharing_fabric=0,
+        )
+    return status
 
 
 @router.post("/{run_id}/start", response_model=RunSummary)
@@ -202,6 +254,7 @@ async def _run_simulation(run_id: str, model: ModelShape, topo, req: SimulateRun
     step = estimate_step_time(
         model, topo, tokens_per_step=req.tokens_per_step, precision=req.precision, utilization=req.utilization
     )
+    payload_gb = model.params * bytes_per_param(req.precision) / 1e9
     store.start(
         run_id,
         {
@@ -213,6 +266,8 @@ async def _run_simulation(run_id: str, model: ModelShape, topo, req: SimulateRun
             "communication_s_per_step": round(step.communication_s, 4),
             "total_s_per_step": round(step.total_s, 4),
             "total_steps": req.total_steps,
+            "fabric_id": req.topology.fabric_id,
+            "payload_gb": round(payload_gb, 4),
         },
     )
     grafana_push.post_annotation(
@@ -230,14 +285,20 @@ async def _run_simulation(run_id: str, model: ModelShape, topo, req: SimulateRun
             active = [ChaosEvent(**e) for e in (run.chaos_events if run else [])]
             active = [e for e in active if is_active(e, i)]
 
+            eff_topo = effective_topology(topo, active) if active else topo
+            breakdown = (
+                estimate_step_time(model, eff_topo, tokens_per_step=req.tokens_per_step, precision=req.precision, utilization=req.utilization)
+                if active
+                else step
+            )
+            comm_s = breakdown.communication_s
+            contention = _contended_communication_s(run_id, run.meta) if run and run.meta else None
+            if contention is not None:
+                comm_s = contention.communication_s
+            step_s = breakdown.compute_s + comm_s
             if active:
-                step_s = effective_step_seconds(
-                    model, topo, active, tokens_per_step=req.tokens_per_step, precision=req.precision, utilization=req.utilization
-                )
-                active_gpus = effective_topology(topo, active).total_gpus
-            else:
-                step_s = step.total_s
-                active_gpus = topo.total_gpus
+                step_s *= stall_multiplier(active)
+            active_gpus = eff_topo.total_gpus
 
             if req.checkpoint_interval_steps and i % req.checkpoint_interval_steps == 0:
                 write_s = checkpoint_write_seconds(ckpt_size_gb)
