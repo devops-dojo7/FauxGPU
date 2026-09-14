@@ -31,6 +31,7 @@ import { TraceReplayPanel } from "@/components/TraceReplayPanel";
 import { decodeConfig, encodeConfig } from "@/lib/shareConfig";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AiSettingsPanel } from "@/components/AiSettingsPanel";
+import { TabNav } from "@/components/TabNav";
 
 type Tab = "training" | "inference" | "datacenter" | "gpu-compare" | "compare" | "playground" | "recommender" | "cost-dashboard" | "scheduler" | "mig-planner" | "autoscaling" | "network-contention" | "trace-replay";
 
@@ -217,8 +218,8 @@ export default function Home() {
           </div>
 
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <nav className="inline-flex w-fit rounded-full border border-hairline bg-surface-card p-1 gap-1">
-              {(
+            <TabNav
+              tabs={
                 [
                   ["training", "Training"],
                   ["inference", "Inference (llm-d)"],
@@ -234,18 +235,10 @@ export default function Home() {
                   ["network-contention", "Network Contention"],
                   ["trace-replay", "Trace Replay"],
                 ] as [Tab, string][]
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  onClick={() => setTab(id)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                    tab === id ? "bg-primary text-on-primary" : "text-body hover:bg-surface-strong"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </nav>
+              }
+              active={tab}
+              onSelect={setTab}
+            />
 
             <div className="flex items-center gap-2">
               <button
