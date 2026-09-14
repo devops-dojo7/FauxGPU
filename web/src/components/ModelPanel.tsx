@@ -1,7 +1,7 @@
 "use client";
 
-import { MODEL_PRESETS, ModelShape } from "@/lib/types";
-import { Card, Field, ModelArchBadges, NumberInput, Select, Toggle } from "./ui";
+import { getModelPresetTier, MODEL_PRESET_GROUPS, MODEL_PRESETS, ModelShape } from "@/lib/types";
+import { Card, ConfidenceBadge, Field, ModelArchBadges, NumberInput, Select, Toggle } from "./ui";
 
 export interface ModelPanelState {
   presetId: string;
@@ -46,10 +46,14 @@ export function ModelPanel({
         <div className="col-span-2">
           <Field label="Preset">
             <Select value={state.presetId} onChange={onPreset}>
-              {MODEL_PRESETS.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
+              {MODEL_PRESET_GROUPS.map((g) => (
+                <optgroup key={g.tier} label={g.label}>
+                  {g.presets.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
               <option value="custom">Custom</option>
             </Select>
@@ -70,8 +74,9 @@ export function ModelPanel({
           </div>
         )}
 
-        <div className="col-span-2">
+        <div className="col-span-2 flex flex-wrap gap-2 items-center">
           <ModelArchBadges model={state.model} />
+          <ConfidenceBadge tier={getModelPresetTier(state.presetId)} />
         </div>
 
         <Field label="Params (billions)">

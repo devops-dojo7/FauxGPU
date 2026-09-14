@@ -574,6 +574,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
   { id: "nemotron-4-340b", label: "NVIDIA Nemotron-4 340B", params: 340.0e9, num_layers: 96, hidden_dim: 18432, num_heads: 96, head_dim: 192, num_kv_heads: 8 },
   { id: "mistral-large-2", label: "Mistral Large 2 123B", params: 123.0e9, num_layers: 88, hidden_dim: 12288, num_heads: 96, head_dim: 128, num_kv_heads: 8 },
   { id: "llama3.1-405b", label: "Llama-3.1 405B", params: 405.0e9, num_layers: 126, hidden_dim: 16384, num_heads: 128, head_dim: 128, num_kv_heads: 8 },
+  { id: "command-r-plus", label: "Command R+ 104B", params: 104.0e9, num_layers: 64, hidden_dim: 12288, num_heads: 96, head_dim: 128, num_kv_heads: 8 },
 
   // MoE — `active_params` is what's touched per token; `params` is the total resident-in-VRAM count.
   { id: "mixtral-8x7b", label: "Mixtral 8x7B (MoE)", params: 46.7e9, active_params: 12.9e9, num_layers: 32, hidden_dim: 4096, num_heads: 32, head_dim: 128, num_kv_heads: 8 },
@@ -586,6 +587,15 @@ export const MODEL_PRESETS: ModelPreset[] = [
   { id: "grok-1", label: "Grok-1 314B-A86B (MoE)", params: 314.0e9, active_params: 86.0e9, num_layers: 64, hidden_dim: 6144, num_heads: 48, head_dim: 128, num_kv_heads: 8 },
   { id: "qwen3-235b-a22b", label: "Qwen3 235B-A22B (MoE)", params: 235.0e9, active_params: 22.0e9, num_layers: 94, hidden_dim: 4096, num_heads: 64, head_dim: 128, num_kv_heads: 4 },
   { id: "llama4-maverick", label: "Llama 4 Maverick 400B-A17B (MoE)", params: 400.0e9, active_params: 17.0e9, num_layers: 48, hidden_dim: 5120, num_heads: 40, head_dim: 128, num_kv_heads: 8 },
+  { id: "glm-4.5-air", label: "GLM-4.5-Air 106B-A12B (MoE)", params: 106.0e9, active_params: 12.0e9, num_layers: 46, hidden_dim: 4096, num_heads: 96, head_dim: 128, num_kv_heads: 8 },
+  { id: "glm-4.5", label: "GLM-4.5 355B-A32B (MoE)", params: 355.0e9, active_params: 32.0e9, num_layers: 92, hidden_dim: 5120, num_heads: 96, head_dim: 128, num_kv_heads: 8 },
+  // MiniMax-M1's real architecture is a hybrid: Lightning (linear) attention
+  // on 7 of every 8 layers, softmax attention on the 8th — this engine's
+  // single-attention-type model can't represent that mix, so it's
+  // approximated as uniform GQA (same simplification tier as Kimi K3 below).
+  // Weights-VRAM math (the dominant cost at this scale) is accurate; only
+  // the KV-cache portion is a simplification.
+  { id: "minimax-m1", label: "MiniMax-M1 456B-A45.9B (MoE, hybrid-attention approx.)", params: 456.0e9, active_params: 45.9e9, num_layers: 80, hidden_dim: 6144, num_heads: 64, head_dim: 128, num_kv_heads: 8 },
 
   // MoE + MLA — `kv_latent_dim` replaces the head-count KV formula with DeepSeek-V3's compressed latent.
   { id: "deepseek-v3", label: "DeepSeek-V3 671B-A37B (MoE+MLA)", params: 671.0e9, active_params: 37.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576 },
@@ -612,7 +622,28 @@ export const MODEL_PRESETS: ModelPreset[] = [
   // that's visible in the picker itself, not just here.
   { id: "claude-3-haiku-est", label: "Claude 3 Haiku (est., unofficial)", params: 20.0e9, num_layers: 40, hidden_dim: 5120, num_heads: 40, head_dim: 128, num_kv_heads: 8 },
   { id: "claude-3.5-sonnet-est", label: "Claude 3.5 Sonnet (est., unofficial)", params: 70.0e9, num_layers: 76, hidden_dim: 8192, num_heads: 64, head_dim: 128, num_kv_heads: 8 },
+  // Claude Haiku 4.5 / Sonnet 5 / Opus 5 — Anthropic's current model family
+  // as of this catalog's last update. Same treatment as the Claude 3 entries
+  // above: Anthropic has never disclosed parameter counts or internal shape
+  // for any Claude model, so these are invented plausible dense transformer
+  // shapes at a loosely scaled-up tier, not sourced data.
+  { id: "claude-haiku-4.5-est", label: "Claude Haiku 4.5 (est., unofficial)", params: 25.0e9, num_layers: 44, hidden_dim: 5632, num_heads: 44, head_dim: 128, num_kv_heads: 8 },
+  { id: "claude-sonnet-5-est", label: "Claude Sonnet 5 (est., unofficial)", params: 90.0e9, num_layers: 80, hidden_dim: 8192, num_heads: 64, head_dim: 128, num_kv_heads: 8 },
+  { id: "claude-opus-5-est", label: "Claude Opus 5 (est., unofficial)", params: 300.0e9, num_layers: 100, hidden_dim: 12288, num_heads: 96, head_dim: 128, num_kv_heads: 8 },
   { id: "grok-2-est", label: "Grok-2 (est., unofficial, MoE)", params: 270.0e9, active_params: 115.0e9, num_layers: 64, hidden_dim: 8192, num_heads: 64, head_dim: 128, num_kv_heads: 8 },
+  // GPT-6 Astra: a real, shipped OpenAI model (released Sept 3-4 2026;
+  // OpenAI's own system card confirms it exists) — not a rumor like ox-alpha,
+  // and not architecture-blank like the GPT-5/Gemini-3-Pro/Grok-4 placeholders
+  // below. OpenAI has not disclosed its architecture, but unlike those three,
+  // a specific size did circulate: social-media leak claims plus several
+  // secondary analyst posts converged on a ~10T-total / ~500B-active MoE
+  // (range reported as 4T-10T total), which is the same "rumor exists, exact
+  // shape doesn't" situation as the Grok-2/GPT-4-era entries above — so this
+  // gets the "(est.)" treatment, not the "(placeholder)" one. Layer/hidden-
+  // dim/head counts below are invented to be a plausible MoE transformer at
+  // that reported scale (same simplification tier as grok-2-est), not
+  // sourced data.
+  { id: "gpt-6-astra-est", label: "GPT-6 Astra (est., unofficial, MoE)", params: 10000.0e9, active_params: 500.0e9, num_layers: 120, hidden_dim: 16384, num_heads: 128, head_dim: 128, num_kv_heads: 8 },
   // ox-alpha: an anonymous "stealth" model benchmarked publicly on OpenRouter
   // (Aug 2026) — maker unconfirmed (fingerprinting analysis guesses Zhipu/
   // GLM-class with ~90% confidence, per third-party blog speculation, not a
@@ -621,4 +652,47 @@ export const MODEL_PRESETS: ModelPreset[] = [
   // page reads "Unknown". This entry is a round-number placeholder so it
   // shows up in the list, not a size/architecture estimate of any kind.
   { id: "ox-alpha-placeholder", label: "ox-alpha (placeholder — no public specs exist)", params: 100.0e9, num_layers: 80, hidden_dim: 8192, num_heads: 64, head_dim: 128 },
+  // GPT-5, Gemini 3 Pro, and Grok 4 get the same "no public specs exist"
+  // treatment as ox-alpha above, not the "(est.)" treatment used for GPT-4-
+  // and Grok-2-era entries: those had at least a leaked/rumored parameter
+  // count to anchor a guess to; these three don't (as of this catalog's
+  // last update), so inventing a specific shape would be less honest than a
+  // round-number placeholder that only exists to make the model selectable.
+  { id: "gpt-5-placeholder", label: "GPT-5 (placeholder — no public specs exist)", params: 200.0e9, num_layers: 96, hidden_dim: 12288, num_heads: 96, head_dim: 128, num_kv_heads: 8 },
+  { id: "gemini-3-pro-placeholder", label: "Gemini 3 Pro (placeholder — no public specs exist)", params: 200.0e9, num_layers: 96, hidden_dim: 12288, num_heads: 96, head_dim: 128, num_kv_heads: 8 },
+  { id: "grok-4-placeholder", label: "Grok 4 (placeholder — no public specs exist)", params: 270.0e9, num_layers: 88, hidden_dim: 10240, num_heads: 80, head_dim: 128, num_kv_heads: 8 },
 ];
+
+// Groups MODEL_PRESETS by sourcing confidence, derived from each preset's own
+// label suffix (the "(est., ...)" / "(placeholder ...)" convention used
+// consistently above) rather than a separate field, so every future preset
+// only has to follow that same label convention to be grouped correctly.
+export type ModelPresetTier = "open" | "est" | "placeholder";
+
+function modelPresetTier(label: string): ModelPresetTier {
+  if (label.includes("(placeholder")) return "placeholder";
+  if (label.includes("(est.")) return "est";
+  return "open";
+}
+
+const MODEL_PRESET_TIER_LABELS: Record<ModelPresetTier, string> = {
+  open: "Open / published configs",
+  est: "Estimated (unofficial)",
+  placeholder: "No public specs (placeholder)",
+};
+
+export const MODEL_PRESET_GROUPS: { tier: ModelPresetTier; label: string; presets: ModelPreset[] }[] = (
+  ["open", "est", "placeholder"] as const
+)
+  .map((tier) => ({
+    tier,
+    label: MODEL_PRESET_TIER_LABELS[tier],
+    presets: MODEL_PRESETS.filter((p) => modelPresetTier(p.label) === tier),
+  }))
+  .filter((g) => g.presets.length > 0);
+
+/** Confidence tier for a preset id — null for "custom" or any id that isn't a known preset (nothing to warn about there). */
+export function getModelPresetTier(presetId: string): ModelPresetTier | null {
+  const preset = MODEL_PRESETS.find((p) => p.id === presetId);
+  return preset ? modelPresetTier(preset.label) : null;
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
-import { ModelShape } from "@/lib/types";
+import { ModelPresetTier, ModelShape } from "@/lib/types";
 import { isMoe, usesMla } from "@/lib/simEngine";
 import { formatCompact } from "@/lib/format";
 
@@ -119,13 +119,25 @@ export function ButtonOutline({
   );
 }
 
-export function BadgePill({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function BadgePill({ children, className = "", title }: { children: ReactNode; className?: string; title?: string }) {
   return (
     <span
+      title={title}
       className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full bg-surface-strong text-ink ${className}`}
     >
       {children}
     </span>
+  );
+}
+
+/** Flags a model preset whose specs aren't from a real published source — nothing renders for "open" presets or Custom (tier === null). */
+export function ConfidenceBadge({ tier }: { tier: ModelPresetTier | null }) {
+  if (tier === null || tier === "open") return null;
+  const text = tier === "est" ? "Est., unofficial" : "No public specs";
+  return (
+    <BadgePill className="normal-case tracking-normal font-medium text-warning border border-warning/40" title="This model's architecture isn't from a real published config — see the preset list for sourcing.">
+      ⚠ {text}
+    </BadgePill>
   );
 }
 

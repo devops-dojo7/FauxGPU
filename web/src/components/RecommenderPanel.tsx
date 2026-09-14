@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { calculateRecommend, fetchAiProviders, fetchLangfuseStatus, recommendNl } from "@/lib/api";
 import { formatCompact, formatUsd } from "@/lib/format";
-import { AiProvider, AiProviderStatus, LangfuseStatus, MODEL_PRESETS, RecommendationCandidate } from "@/lib/types";
+import { AiProvider, AiProviderStatus, getModelPresetTier, LangfuseStatus, MODEL_PRESET_GROUPS, MODEL_PRESETS, RecommendationCandidate } from "@/lib/types";
 import { Card, Field, NumberInput, Select, Toggle } from "./ui";
 import { AiModelSelect } from "./AiModelSelect";
 
@@ -54,6 +54,7 @@ export function RecommenderPanel() {
   };
 
   const preset = MODEL_PRESETS.find((p) => p.id === presetId) ?? MODEL_PRESETS[0];
+  const presetTier = getModelPresetTier(presetId);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for an outbound fetch, not derived state
@@ -141,10 +142,14 @@ export function RecommenderPanel() {
           <div className="col-span-2">
             <Field label="Model">
               <Select value={presetId} onChange={setPresetId}>
-                {MODEL_PRESETS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
+                {MODEL_PRESET_GROUPS.map((g) => (
+                  <optgroup key={g.tier} label={g.label}>
+                    {g.presets.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </Select>
             </Field>
@@ -178,6 +183,13 @@ export function RecommenderPanel() {
             </Field>
           )}
         </div>
+        {presetTier && presetTier !== "open" && (
+          <p className="text-xs text-warning mt-4 pt-4 border-t border-hairline">
+            ⚠ {preset.label} has {presetTier === "est" ? "an estimated, unofficial" : "no public"} architecture spec —
+            these rankings are optimizing against an invented model shape, not a real published config. Treat the
+            numbers below as illustrative, not as a real recommendation for this model.
+          </p>
+        )}
       </Card>
 
       <Card title={`Ranked candidates${candidates ? ` (${candidates.length})` : ""}`}>

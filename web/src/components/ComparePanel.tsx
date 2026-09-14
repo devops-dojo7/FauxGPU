@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { calculateCost, calculateInference, calculateVram } from "@/lib/api";
-import { CostResponse, GpuSpec, InferenceResponse, MODEL_PRESETS, ModelShape, VramResponse } from "@/lib/types";
+import { CostResponse, GpuSpec, InferenceResponse, MODEL_PRESET_GROUPS, MODEL_PRESETS, ModelShape, VramResponse } from "@/lib/types";
 import { isMoe, usesMla } from "@/lib/simEngine";
 import { formatGb, formatUsd } from "@/lib/format";
 import { ModelPanelState } from "./ModelPanel";
@@ -363,10 +363,14 @@ export function ComparePanel({
                       if (preset) updateSlot(slot.id, { presetId: id, model: { ...preset } });
                     }}
                   >
-                    {MODEL_PRESETS.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                      </option>
+                    {MODEL_PRESET_GROUPS.map((g) => (
+                      <optgroup key={g.tier} label={g.label}>
+                        {g.presets.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                     <option value="custom">Custom</option>
                   </Select>
