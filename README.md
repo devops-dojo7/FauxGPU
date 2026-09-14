@@ -184,6 +184,45 @@ kubectl delete job simgpu-trainer --ignore-not-found
 helm upgrade simgpu k3s/helm/simgpu --set gpuBackend=fake-gpu-operator
 ```
 
+**Full NVIDIA GPU Operator/NFD label parity, heterogeneous fleet included.**
+fake-gpu-operator's own status-exporter already writes
+`nvidia.com/gpu.present`, `.product`, `.memory`, and `.count` — real
+product/VRAM/count info, enough for anything that reads standard k8s node
+capacity and NFD-style GPU labels (e.g.
+[`srelens-tui`](https://github.com/srelens/srelens)'s `:gpuinfo` view) to
+show these nodes as genuine GPU hardware. It does *not* write driver/CUDA
+version or GPU family/machine, so `k3s/helm/simgpu` fills those in itself
+via a post-install/upgrade Job (`fakeGpuOperator.extraNodeLabels` /
+`fakeGpuOperator.nodePools` in values.yaml, on by default whenever
+`gpuBackend: fake-gpu-operator`).
+
+`scripts/playground-up.sh` goes one step further by default: instead of
+one GPU model repeated on every node, it assigns each of the 3 k3d agents
+to its own fake-gpu-operator node pool — H100-SXM5-80GB, A100-SXM4-40GB,
+and B200-SXM-192GB — so a GPU-aware tool sees a genuinely mixed fleet, not
+3 identical nodes. Edit the `POOLS` array at the top of that script to
+change the models/count, or do it by hand for the manual walkthrough above
+by repeating the `kubectl label` / `--set topology.nodePools.<name>.*`
+steps once per pool name and passing matching
+`fakeGpuOperator.nodePools` entries to the `simgpu` chart instead of the
+single `nodePool`/`extraNodeLabels` pair.
+
+```bash
+kubectl get nodes -L run.ai/simulated-gpu-node-pool,nvidia.com/gpu.product
+kubectl describe node <agent-node> | grep -A12 "nvidia.com/"
+```
+
+**Gotcha, confirmed the hard way:** fake-gpu-operator's node controller only
+reconciles a node's topology on Add/Delete, not on a label *Update* — so
+relabeling an already-`Ready` node to a different `run.ai/simulated-gpu-
+node-pool` value (e.g. re-running the multi-pool setup against a cluster
+that was previously single-pool) leaves it showing the *old* pool's
+product/memory/count until the node rejoins the cluster. If you change
+pool assignments on an existing cluster and the labels don't update,
+`scripts/playground-down.sh` + `scripts/playground-up.sh` (or drain/delete
+the node so it rejoins) is the reliable fix — a fresh node always picks up
+the right pool immediately.
+
 Then, for a KWOK-simulated fleet of 100+ nodes (scheduling/topology-at-scale
 only — KWOK nodes have no real kubelet, so real trainer/inference Jobs
 still land on the small real node pool above):

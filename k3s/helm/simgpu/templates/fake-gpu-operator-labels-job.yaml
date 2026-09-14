@@ -1,0 +1,101 @@
+{{- if and (eq .Values.gpuBackend "fake-gpu-operator") .Values.fakeGpuOperator.extraNodeLabels.enabled }}
+{{- $pools := .Values.fakeGpuOperator.nodePools }}
+{{- if not $pools }}
+{{- $pools = list (dict
+      "name" .Values.fakeGpuOperator.nodePool
+      "driverVersion" .Values.fakeGpuOperator.extraNodeLabels.driverVersion
+      "cudaVersion" .Values.fakeGpuOperator.extraNodeLabels.cudaVersion
+      "gpuFamily" .Values.fakeGpuOperator.extraNodeLabels.gpuFamily
+      "gpuMachine" .Values.fakeGpuOperator.extraNodeLabels.gpuMachine) }}
+{{- end }}
+# fake-gpu-operator's own status-exporter writes nvidia.com/gpu.present,
+# .product, .memory, and .count (verified against its source). It does not
+# write the rest of the real NVIDIA GPU Operator/Node Feature Discovery
+# label set — driver/CUDA version, GPU family/machine — so this Job fills
+# those in itself, once per install/upgrade, per node pool (single pool via
+# fakeGpuOperator.nodePool/extraNodeLabels, or one label set per entry in
+# fakeGpuOperator.nodePools for a heterogeneous fleet — see values.yaml).
+# Read-only otherwise: it never touches gpu.present/product/memory/count,
+# which stay owned by fake-gpu-operator.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: simgpu-gpu-labeler
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: simgpu-gpu-labeler
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+rules:
+  # Nodes are cluster-scoped, so this can't be a namespaced Role — scoped to
+  # exactly the two verbs this Job needs (list nodes per pool, patch their
+  # labels), nothing else.
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: simgpu-gpu-labeler
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+subjects:
+  - kind: ServiceAccount
+    name: simgpu-gpu-labeler
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: simgpu-gpu-labeler
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: simgpu-gpu-labeler
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: simgpu-gpu-labeler
+      containers:
+        - name: label-nodes
+          # Bitnami only publishes a rolling `latest` for this image (no
+          # numbered tags) — imagePullPolicy: Always keeps that meaningful.
+          image: bitnami/kubectl:latest
+          imagePullPolicy: Always
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+{{- range $pools }}
+              nodes=$(kubectl get nodes -l "{{ $.Values.fakeGpuOperator.nodePoolLabelKey }}={{ .name }}" -o name)
+              if [ -z "$nodes" ]; then
+                echo "no nodes found with label {{ $.Values.fakeGpuOperator.nodePoolLabelKey }}={{ .name }} — skipping pool {{ .name }}"
+              else
+                for n in $nodes; do
+                  echo "labeling $n (pool {{ .name }})"
+                  kubectl label "$n" --overwrite \
+                    nvidia.com/cuda.driver-version="{{ .driverVersion }}" \
+                    nvidia.com/cuda.runtime.version="{{ .cudaVersion }}" \
+                    nvidia.com/gpu.family="{{ .gpuFamily }}" \
+                    nvidia.com/gpu.machine="{{ .gpuMachine }}"
+                done
+              fi
+{{- end }}
+{{- end }}

@@ -1,7 +1,11 @@
 simgpu is deployed.
 
 Check simulated GPU resources registered on each node:
-  kubectl describe nodes | grep -A5 "simgpu.dev/gpu"
+  kubectl describe nodes | grep -A5 "{{ include "simgpu.gpuResourceName" . | trim }}"
+{{- if and (eq .Values.gpuBackend "fake-gpu-operator") .Values.fakeGpuOperator.extraNodeLabels.enabled }}
+  # (also carries full nvidia.com/gpu.* + cuda.*/family/machine labels —
+  # see "Full NVIDIA GPU Operator/NFD label parity" in README.md)
+{{- end }}
 
 Watch the sample trainer job get scheduled and simulate training steps:
   kubectl get pods -l app=simgpu-trainer

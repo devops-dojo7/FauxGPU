@@ -23,6 +23,49 @@ fakeGpuOperator:
   nodePoolLabelKey: run.ai/simulated-gpu-node-pool
   nodePool: default
 
+  # fake-gpu-operator's own status-exporter already writes
+  # nvidia.com/gpu.present/product/memory/count (verified against its
+  # source — see internal/status-exporter/export/labels/labels_builder.go).
+  # It does NOT write the rest of the real NVIDIA GPU Operator/Node
+  # Feature Discovery label set — driver/CUDA version or GPU family/machine
+  # — so a Kubernetes-native tool that reads those (e.g. a "gpuinfo"-style
+  # TUI view) sees them as blank even though the core product/memory/count
+  # info is already correct. This chart fills in the rest itself via a
+  # post-install/upgrade Job (see fake-gpu-operator-labels-job.yaml) that
+  # labels every node in `nodePool` above. Keep these in sync with whatever
+  # GPU model you told fake-gpu-operator to simulate (its own
+  # topology.nodePools.<pool>.gpuProduct, set at *its* install time) —
+  # these defaults match this project's own playground-up.sh, which
+  # simulates H100-SXM5-80GB.
+  extraNodeLabels:
+    enabled: true
+    driverVersion: "550.90.07"
+    cudaVersion: "12.4"
+    gpuFamily: "hopper"
+    gpuMachine: "NVIDIA-DGX-H100"
+
+  # Opt-in heterogeneous fleet: one entry per fake-gpu-operator node pool
+  # (each a real topology.nodePools.<name> on *its* install, set separately
+  # — see README "Datacenter mode"), each with its own extra NFD-style
+  # labels. When non-empty, the labeler Job loops over these instead of the
+  # single nodePool/extraNodeLabels pair above, so e.g. an "h100" pool's
+  # nodes and an "a100" pool's nodes each end up with metadata matching
+  # their own simulated model rather than one label set applied everywhere.
+  # scripts/playground-up.sh sets this to a 3-node H100/A100/B200 fleet.
+  # Leave empty (the default) for the single, all-same-model pool above.
+  nodePools: []
+  # nodePools:
+  #   - name: h100
+  #     driverVersion: "550.90.07"
+  #     cudaVersion: "12.4"
+  #     gpuFamily: "hopper"
+  #     gpuMachine: "NVIDIA-DGX-H100"
+  #   - name: a100
+  #     driverVersion: "535.129.03"
+  #     cudaVersion: "12.2"
+  #     gpuFamily: "ampere"
+  #     gpuMachine: "NVIDIA-DGX-A100"
+
 # Opt-in large simulated fleet: renders plain KWOK-annotated Node objects
 # (no real kubelet backs them) so `kubectl get nodes` shows datacenter
 # scale. Requires gpuBackend: fake-gpu-operator, its kwok-gpu-device-plugin
