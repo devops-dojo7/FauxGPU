@@ -589,6 +589,16 @@ export const MODEL_PRESETS: ModelPreset[] = [
   { id: "llama4-maverick", label: "Llama 4 Maverick 400B-A17B (MoE)", params: 400.0e9, active_params: 17.0e9, num_layers: 48, hidden_dim: 5120, num_heads: 40, head_dim: 128, num_kv_heads: 8 },
   { id: "glm-4.5-air", label: "GLM-4.5-Air 106B-A12B (MoE)", params: 106.0e9, active_params: 12.0e9, num_layers: 46, hidden_dim: 4096, num_heads: 96, head_dim: 128, num_kv_heads: 8 },
   { id: "glm-4.5", label: "GLM-4.5 355B-A32B (MoE)", params: 355.0e9, active_params: 32.0e9, num_layers: 92, hidden_dim: 5120, num_heads: 96, head_dim: 128, num_kv_heads: 8 },
+  // Mistral Large 3 (mistralai/Mistral-Large-3-675B-Instruct-2512 on HF,
+  // params.json) — plain multi-head attention, not GQA: its published
+  // num_kv_heads equals num_heads (128 == 128), so num_kv_heads is left
+  // unset per this table's own MHA convention. head_dim (192) doesn't
+  // divide evenly out of hidden_dim/num_heads (7168/128=56) — an expanded
+  // per-head dim independent of hidden_dim, same as this table's other
+  // large MoE entries. active_params is reported inconsistently across
+  // secondary sources as ~39B-41B; 41B (TechCrunch) is used here, not an
+  // official Mistral figure — treat as approximate.
+  { id: "mistral-large-3", label: "Mistral Large 3 675B-A41B (MoE)", params: 675.0e9, active_params: 41.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 192 },
   // MiniMax-M1's real architecture is a hybrid: Lightning (linear) attention
   // on 7 of every 8 layers, softmax attention on the 8th — this engine's
   // single-attention-type model can't represent that mix, so it's
@@ -596,6 +606,10 @@ export const MODEL_PRESETS: ModelPreset[] = [
   // Weights-VRAM math (the dominant cost at this scale) is accurate; only
   // the KV-cache portion is a simplification.
   { id: "minimax-m1", label: "MiniMax-M1 456B-A45.9B (MoE, hybrid-attention approx.)", params: 456.0e9, active_params: 45.9e9, num_layers: 80, hidden_dim: 6144, num_heads: 64, head_dim: 128, num_kv_heads: 8 },
+  // MiniMax-M2 (MiniMaxAI/MiniMax-M2 on HF, config.json) — unlike M1 above,
+  // M2 uses standard GQA throughout (no hybrid linear-attention layers), so
+  // this is a clean, non-approximated entry.
+  { id: "minimax-m2", label: "MiniMax-M2 230B-A10B (MoE)", params: 230.0e9, active_params: 10.0e9, num_layers: 62, hidden_dim: 3072, num_heads: 48, head_dim: 128, num_kv_heads: 8 },
 
   // MoE + MLA — `kv_latent_dim` replaces the head-count KV formula with DeepSeek-V3's compressed latent.
   { id: "deepseek-v3", label: "DeepSeek-V3 671B-A37B (MoE+MLA)", params: 671.0e9, active_params: 37.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576 },
