@@ -284,6 +284,53 @@ gpus:
     l2_cache_mb: null # 256MB Infinity Cache instead of a traditional L2
     interconnect_name: Infinity Fabric
 
+  # AMD's MI400 series, announced July 2026, disclosed in technical detail at
+  # Hot Chips 2026. MI455X is the training/inference SKU (there's also an
+  # MI430X HPC/FP64-heavy variant, not added here). Ships as part of AMD's
+  # "Helios" rack-scale systems (AMD's NVL72-equivalent), but AMD disclosed
+  # clean per-GPU figures at Hot Chips (not just rack aggregates), so this is
+  # a legitimate single-GPU entry — same treatment as b200-sxm/rubin-sxm
+  # above, which also ship inside multi-GPU systems but have real per-GPU specs.
+  # vram_gb/mem_bandwidth_gbps/fp8_tflops/nvlink_gbps/l2_cache_mb are AMD's
+  # own Hot Chips-disclosed per-GPU numbers (fp8_tflops converted from AMD's
+  # stated 20.13 PFLOPS MXFP6/MXFP8 figure). AMD also disclosed 40.26 PFLOPS
+  # MXFP4 — this table has no fp4 field, so it isn't recorded here. AMD's own
+  # "315 TFLOPS FP16/FP32" figure is NOT used for bf16_tflops below: a 64x
+  # jump from that to the FP8 matrix-engine figure implies it's plain
+  # vector/SIMD throughput, not comparable to this table's tensor-core BF16
+  # numbers elsewhere. bf16_tflops is instead derived from the FP8 figure
+  # using this table's own MI325X entry's exact bf16:fp8 ratio (1307:2615 =
+  # 1:2.00) — same estimation approach as rubin-sxm above. tdp_watts is a
+  # third-party estimate (~2000-2500W liquid-cooled, unconfirmed by AMD);
+  # idle_watts scales from it at mi325x's ~13% idle/TDP ratio, same
+  # estimation tier. transistors_b/sm_count/core_count aren't recorded —
+  # only a third-party "~320B transistors" figure was found, not confirmed
+  # in AMD's own materials.
+  - id: mi455x
+    vendor: AMD
+    name: MI455X 432GB
+    vram_gb: 432
+    mem_bandwidth_gbps: 23300
+    bf16_tflops: 10065 # derived from AMD's published FP8 figure via MI325X's own bf16:fp8 ratio — see note above, not a vendor-published BF16 number
+    fp8_tflops: 20130
+    nvlink_gbps: 3600 # UALoE fabric, 72 lanes, AMD-published
+    price_per_hr_usd: 0
+    price_note: "Not yet available for cloud rental — ships as part of AMD's Helios rack-scale systems, no standalone pricing published yet"
+    tdp_watts: 2250 # est. — AMD hasn't published a TDP; third-party reports range ~2000-2500W liquid-cooled
+    idle_watts: 290 # estimated at mi325x's ~13% idle/TDP ratio, same estimation tier as tdp_watts
+    architecture: CDNA 5
+    process_node: "TSMC N2 (compute) + N3P (fabric/cache/I/O), chiplet"
+    launch_year: 2026
+    transistors_b: null # only a third-party "~320B" figure found, unconfirmed by AMD
+    sm_count: null
+    core_count: null
+    core_label: Stream Processors
+    matrix_core_count: null
+    matrix_core_label: Matrix Cores
+    boost_clock_ghz: null
+    l2_cache_mb: 192
+    interconnect_name: UALoE fabric
+
   - id: b200-sxm
     vendor: NVIDIA
     name: B200 SXM 192GB
@@ -307,6 +354,50 @@ gpus:
     boost_clock_ghz: null
     l2_cache_mb: null
     interconnect_name: NVLink 5
+
+  # NVIDIA's next generation after Blackwell, unveiled CES/GTC 2026. Sold as
+  # a standalone GPU baseboard (HGX Vera Rubin NVL81 = 8x Rubin GPUs, no
+  # CPU) distinct from the "Vera Rubin" superchip module (2x Rubin + 1x Vera
+  # CPU) — same standalone-card-vs-superchip distinction this table already
+  # draws for b200-sxm vs. the unmodeled GB200 aggregate, so this is a clean
+  # single-GPU entry, not a rack/superchip split.
+  # vram_gb/mem_bandwidth_gbps/transistors_b/sm_count/nvlink_gbps are
+  # NVIDIA's own published per-GPU figures (nvidia.com developer blog,
+  # cross-checked against the 8-GPU HGX NVL81 system totals). NVIDIA's own
+  # headline compute figure is "50 PFLOPS NVFP4" — no separate BF16/FP8
+  # number has been published. bf16_tflops/fp8_tflops below are *derived*,
+  # not sourced: using this table's own Blackwell-generation pattern of one
+  # doubling per halved precision (confirmed exactly on this table's own
+  # b200-sxm/mi325x entries, e.g. 2x from bf16->fp8), NVFP4 50000 / 4 =
+  # 12500 (bf16), x2 = 25000 (fp8). Treat both as estimates, not vendor
+  # numbers. tdp_watts/process_node are third-party estimates (~1800-2300W,
+  # "TSMC N3") — NVIDIA hasn't published either as of this catalog's last
+  # update; idle_watts scales from tdp_watts at b200-sxm's ~13% idle/TDP
+  # ratio, same estimation tier.
+  - id: rubin-sxm
+    vendor: NVIDIA
+    name: Rubin 288GB
+    vram_gb: 288
+    mem_bandwidth_gbps: 22000
+    bf16_tflops: 12500 # derived from NVIDIA's published NVFP4 figure — see note above, not a vendor-published BF16 number
+    fp8_tflops: 25000 # derived, same caveat as bf16_tflops above
+    nvlink_gbps: 3600
+    price_per_hr_usd: 0
+    price_note: "Not yet available for cloud rental — pre-GA as of this catalog's last update"
+    tdp_watts: 2000 # est. — NVIDIA hasn't published a TDP; third-party reports range ~1800-2300W
+    idle_watts: 260 # estimated at b200-sxm's ~13% idle/TDP ratio, same estimation tier as tdp_watts
+    architecture: Rubin
+    process_node: "TSMC N3 (est., unconfirmed by NVIDIA)"
+    launch_year: 2026
+    transistors_b: 336
+    sm_count: 224
+    core_count: null
+    core_label: CUDA Cores
+    matrix_core_count: 896
+    matrix_core_label: Tensor Cores
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: NVLink 6
 
   - id: rtx4090
     vendor: NVIDIA
@@ -1006,6 +1097,43 @@ gpus:
     architecture: TPU v6e (Trillium)
     process_node: TSMC N5 (est.)
     launch_year: 2024
+    transistors_b: null
+    sm_count: null
+    core_count: null
+    core_label: TensorCores
+    matrix_core_count: null
+    matrix_core_label: MXU
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "ICI (Inter-Chip Interconnect)"
+
+  # TPU v7, codenamed Ironwood — Google's first TPU generation designed
+  # specifically for inference, GA'd April 2026. vram_gb/mem_bandwidth_gbps/
+  # bf16_tflops/fp8_tflops/nvlink_gbps are Google's own published per-chip
+  # figures (docs.cloud.google.com/tpu/docs/tpu7x); sanity-checked against
+  # Google's published full-pod figure (4,614 TFLOPS FP8 x 9,216 chips/pod =
+  # ~42.5 FP8 ExaFLOPS, matching Google's own pod-scale claim). tdp_watts is
+  # a widely-reported (not Google-published) ~600W figure — treat as
+  # unconfirmed, same tier as process_node's "(est.)" below. price_per_hr_usd
+  # is left at 0: on-demand pricing is reported inconsistently across
+  # sources (one source cites ~$12/chip-hr, another states no public price
+  # existed months after launch) and this catalog's own check against
+  # Google's pricing page was inconclusive — see price_note.
+  - id: tpu-v7-ironwood
+    vendor: Google
+    name: TPU v7 (Ironwood) 192GB
+    vram_gb: 192
+    mem_bandwidth_gbps: 7380
+    bf16_tflops: 2307
+    fp8_tflops: 4614
+    nvlink_gbps: 1200 # bidirectional ICI (inter-chip interconnect) per chip
+    price_per_hr_usd: 0
+    price_note: "On-demand pricing reported inconsistently across sources as of this catalog's last update — not confirmed directly against Google's own pricing page"
+    tdp_watts: 600 # widely reported, not a Google-published figure
+    idle_watts: 80 # estimated at tpu-v6e-trillium's ~13% idle/TDP ratio, same estimation tier as tdp_watts
+    architecture: TPU v7 (Ironwood)
+    process_node: TSMC N3 (est.)
+    launch_year: 2026
     transistors_b: null
     sm_count: null
     core_count: null
