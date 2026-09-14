@@ -26,11 +26,13 @@ export function LiveInferencePlayground({
   modelLabel,
   gpu,
   precision,
+  tpDegree,
 }: {
   model: ModelShape;
   modelLabel?: string;
   gpu: GpuSpec | undefined;
   precision: string;
+  tpDegree: number;
 }) {
   const [prompt, setPrompt] = useState("Explain how KV cache works in transformer inference.");
   const [maxOutputTokens, setMaxOutputTokens] = useState(80);
@@ -65,10 +67,10 @@ export function LiveInferencePlayground({
 
     const pTokens = estimateTokens(prompt);
 
-    const fit = checkVramFit(model, gpu, precision, pTokens + maxOutputTokens);
+    const fit = checkVramFit(model, gpu, precision, pTokens + maxOutputTokens, tpDegree);
     if (!fit.fits) {
       setOomError(
-        `Out of memory: weights + KV cache for this prompt/output length need ~${fit.requiredGb.toFixed(1)} GB, but ${gpu.name} only has ${fit.capacityGb} GB. Reduce output tokens, prompt length, or pick a bigger GPU.`,
+        `Out of memory: weights + KV cache for this prompt/output length need ~${fit.requiredGb.toFixed(1)} GB${tpDegree > 1 ? ` per GPU (${tpDegree}-way split)` : ""}, but ${gpu.name} only has ${fit.capacityGb} GB. Reduce output tokens, prompt length, pick a bigger GPU, or increase tensor-parallel GPUs.`,
       );
       return;
     }
@@ -95,6 +97,7 @@ export function LiveInferencePlayground({
           max_output_tokens: maxOutputTokens,
           cache_hit_fraction: cacheHitPct / 100,
           utilization: 0.35,
+          tp_degree: tpDegree,
         },
         controller.signal,
       )) {

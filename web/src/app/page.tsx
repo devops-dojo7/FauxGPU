@@ -89,7 +89,7 @@ export default function Home() {
     decodeBatchSize: 8,
     requestsPerSec: 2,
     cacheHitPct: 30,
-    decodeGpus: 1,
+    tpDegree: 1,
     pagedAttention: true,
     gpuMemoryUtilizationPct: 90,
   });
@@ -336,18 +336,21 @@ export default function Home() {
               outputTokens={inferenceInputs.outputTokens}
               decodeBatchSize={inferenceInputs.decodeBatchSize}
               cacheHitFraction={inferenceInputs.cacheHitPct / 100}
+              tpDegree={inferenceInputs.tpDegree}
             />
             <LiveInferencePlayground
               model={modelState.model}
               modelLabel={getModelLabel(modelState)}
               gpu={gpu}
               precision={inferenceInputs.precision}
+              tpDegree={inferenceInputs.tpDegree}
             />
             <MultiRequestPlayground
               model={modelState.model}
               modelLabel={getModelLabel(modelState)}
               gpu={gpu}
               precision={inferenceInputs.precision}
+              tpDegree={inferenceInputs.tpDegree}
             />
             <SpeculativeDecodingPanel targetModel={modelState.model} gpu={gpu} precision={inferenceInputs.precision} />
           </div>

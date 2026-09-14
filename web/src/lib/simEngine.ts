@@ -113,8 +113,12 @@ export interface VramFitCheck {
 /** Whether weights (all experts, if MoE) + the given total KV cache tokens
  * (summed across however many sequences are meant to be resident at once)
  * fit in the GPU's VRAM. */
-export function checkVramFit(model: ModelShape, gpu: GpuSpec, precision: string, totalKvTokens: number): VramFitCheck {
-  const requiredBytes = weightsBytes(model, precision) + kvCacheBytesPerToken(model, precision) * totalKvTokens;
+/** tpDegree > 1 shards weights evenly across the group (mirrors
+ * engine.estimate_serving_capacity) — this is a per-GPU fit check, same as
+ * the backend's, so a model that doesn't fit at tpDegree=1 can correctly
+ * pass once sharded. */
+export function checkVramFit(model: ModelShape, gpu: GpuSpec, precision: string, totalKvTokens: number, tpDegree = 1): VramFitCheck {
+  const requiredBytes = weightsBytes(model, precision) / Math.max(tpDegree, 1) + kvCacheBytesPerToken(model, precision) * totalKvTokens;
   const requiredGb = requiredBytes / 1e9;
   return { fits: requiredGb <= gpu.vram_gb, requiredGb, capacityGb: gpu.vram_gb };
 }

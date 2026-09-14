@@ -248,6 +248,7 @@ export function ComparePanel({
           paged_attention: inferenceInputs.pagedAttention,
           block_size: 16,
           gpu_memory_utilization: inferenceInputs.gpuMemoryUtilizationPct / 100,
+          tp_degree: inferenceInputs.tpDegree,
         }),
       ])
         .then(([vram, cost, inference]) => {

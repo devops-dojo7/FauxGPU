@@ -13,7 +13,7 @@ export interface InferenceInputsState {
   decodeBatchSize: number;
   requestsPerSec: number;
   cacheHitPct: number;
-  decodeGpus: number;
+  tpDegree: number;
   pagedAttention: boolean;
   gpuMemoryUtilizationPct: number;
 }
@@ -30,25 +30,25 @@ const WELL_LIT_PATHS: WellLitPath[] = [
     id: "chat",
     label: "Chat — low latency",
     description: "Short prompts, small batches, tuned for fast TTFT over raw throughput.",
-    config: { promptTokens: 512, outputTokens: 256, decodeBatchSize: 1, requestsPerSec: 1, cacheHitPct: 50, decodeGpus: 1, pagedAttention: true, gpuMemoryUtilizationPct: 85 },
+    config: { promptTokens: 512, outputTokens: 256, decodeBatchSize: 1, requestsPerSec: 1, cacheHitPct: 50, tpDegree: 1, pagedAttention: true, gpuMemoryUtilizationPct: 85 },
   },
   {
     id: "rag",
     label: "RAG — long context",
     description: "Large retrieved-context prompts with a shared/cached system prefix.",
-    config: { promptTokens: 8192, outputTokens: 512, decodeBatchSize: 4, requestsPerSec: 2, cacheHitPct: 70, decodeGpus: 2, pagedAttention: true, gpuMemoryUtilizationPct: 90 },
+    config: { promptTokens: 8192, outputTokens: 512, decodeBatchSize: 4, requestsPerSec: 2, cacheHitPct: 70, tpDegree: 2, pagedAttention: true, gpuMemoryUtilizationPct: 90 },
   },
   {
     id: "batch",
     label: "Batch — high throughput",
     description: "Large decode batches, many concurrent requests, offline/async workloads.",
-    config: { promptTokens: 1024, outputTokens: 1024, decodeBatchSize: 32, requestsPerSec: 8, cacheHitPct: 10, decodeGpus: 4, pagedAttention: true, gpuMemoryUtilizationPct: 95 },
+    config: { promptTokens: 1024, outputTokens: 1024, decodeBatchSize: 32, requestsPerSec: 8, cacheHitPct: 10, tpDegree: 4, pagedAttention: true, gpuMemoryUtilizationPct: 95 },
   },
   {
     id: "code",
     label: "Code completion — bursty",
     description: "Short outputs, very high request rate, heavy prefix-cache reuse from shared repo context.",
-    config: { promptTokens: 2048, outputTokens: 64, decodeBatchSize: 4, requestsPerSec: 10, cacheHitPct: 60, decodeGpus: 2, pagedAttention: true, gpuMemoryUtilizationPct: 85 },
+    config: { promptTokens: 2048, outputTokens: 64, decodeBatchSize: 4, requestsPerSec: 10, cacheHitPct: 60, tpDegree: 2, pagedAttention: true, gpuMemoryUtilizationPct: 85 },
   },
 ];
 
@@ -102,6 +102,7 @@ export function InferencePanel({
       paged_attention: state.pagedAttention,
       block_size: 16,
       gpu_memory_utilization: state.gpuMemoryUtilizationPct / 100,
+      tp_degree: state.tpDegree,
     })
       .then(setResult)
       .catch((e) => setError(e.message))
@@ -109,9 +110,13 @@ export function InferencePanel({
   }, [model, gpu, state]);
 
   const maxTps = result ? result.disaggregated_tokens_per_sec_per_gpu : 0;
-  const clusterTps = result ? result.disaggregated_tokens_per_sec_per_gpu * state.decodeGpus : 0;
+  // tokens_per_sec_per_gpu is the whole TP group's real (communication-aware)
+  // aggregate throughput straight from the backend — no client-side ×tpDegree
+  // multiply needed, unlike the old decodeGpus naive-scaling approximation.
   const costPer1kTokens =
-    result && gpu && clusterTps > 0 ? ((gpu.price_per_hr_usd * state.decodeGpus) / 3600 / clusterTps) * 1000 : 0;
+    result && gpu && result.disaggregated_tokens_per_sec_per_gpu > 0
+      ? ((gpu.price_per_hr_usd * state.tpDegree) / 3600 / result.disaggregated_tokens_per_sec_per_gpu) * 1000
+      : 0;
 
   return (
     <Card title="Inference & serving">
@@ -176,8 +181,8 @@ export function InferencePanel({
         <Field label="Prefix cache hit %">
           <NumberInput value={state.cacheHitPct} min={0} max={100} step={5} onChange={(v) => set({ cacheHitPct: v })} />
         </Field>
-        <Field label="Decode pool GPUs">
-          <NumberInput value={state.decodeGpus} min={1} onChange={(v) => set({ decodeGpus: v })} />
+        <Field label="GPUs (tensor-parallel)">
+          <NumberInput value={state.tpDegree} min={1} onChange={(v) => set({ tpDegree: v })} />
         </Field>
         <Field label="GPU memory utilization %">
           <NumberInput value={state.gpuMemoryUtilizationPct} min={10} max={100} step={5} onChange={(v) => set({ gpuMemoryUtilizationPct: v })} />
@@ -193,8 +198,19 @@ export function InferencePanel({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
             <Stat label="TTFT" value={`${result.ttft_ms.toFixed(0)} ms`} sub="time to first token" />
             <Stat label="Decode step" value={`${result.decode_step_ms.toFixed(1)} ms`} sub={`batch ${state.decodeBatchSize}`} />
-            <Stat label="Peak throughput" value={`${result.tokens_per_sec_per_gpu.toFixed(0)} tok/s`} sub="per GPU, undisturbed" />
+            <Stat
+              label="Peak throughput"
+              value={`${result.tokens_per_sec_per_gpu.toFixed(0)} tok/s`}
+              sub={state.tpDegree > 1 ? `TP group of ${state.tpDegree}, undisturbed` : "per GPU, undisturbed"}
+            />
             <Stat label="Prefill interference" value={`${(result.prefill_interference_fraction * 100).toFixed(0)}%`} sub="of GPU time, if colocated" />
+            {state.tpDegree > 1 && (
+              <Stat
+                label="TP communication overhead"
+                value={`${(result.tp_communication_overhead_fraction * 100).toFixed(0)}%`}
+                sub="of decode step, NVLink all-reduce"
+              />
+            )}
           </div>
 
           <div className="space-y-3 mb-5">
@@ -203,19 +219,29 @@ export function InferencePanel({
           </div>
 
           <div className="border-t border-hairline pt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-            <Stat label="Decode pool cost" value={`$${(gpu ? gpu.price_per_hr_usd * state.decodeGpus : 0).toFixed(2)}/hr`} sub={`${state.decodeGpus} GPU${state.decodeGpus > 1 ? "s" : ""}`} />
-            <Stat label="Cluster throughput" value={`${clusterTps.toFixed(0)} tok/s`} sub="disaggregated decode pool" />
-            <Stat label="Cost / 1K tokens" value={formatUsd(costPer1kTokens)} sub="served, decode pool only" />
+            <Stat label="TP group cost" value={`$${(gpu ? gpu.price_per_hr_usd * state.tpDegree : 0).toFixed(2)}/hr`} sub={`${state.tpDegree} GPU${state.tpDegree > 1 ? "s" : ""}`} />
+            <Stat
+              label="Per-GPU throughput"
+              value={`${result.tokens_per_sec_per_gpu_amortized.toFixed(0)} tok/s`}
+              sub={state.tpDegree > 1 ? `amortized across ${state.tpDegree} GPUs` : "= peak throughput above"}
+            />
+            <Stat label="Cost / 1K tokens" value={formatUsd(costPer1kTokens)} sub="served, decode only" />
           </div>
 
           <div className="border-t border-hairline pt-4 mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Stat label="Usable VRAM" value={`${result.usable_vram_gb.toFixed(0)} GB`} sub={`${state.gpuMemoryUtilizationPct}% of ${gpu?.vram_gb ?? 0} GB`} />
-            <Stat label="Weights" value={`${result.weights_gb.toFixed(0)} GB`} sub="all experts resident, if MoE" />
-            <Stat label="KV cache budget" value={`${result.kv_budget_gb.toFixed(1)} GB`} sub="usable VRAM minus weights" />
+            <Stat label="Usable VRAM" value={`${result.usable_vram_gb.toFixed(0)} GB`} sub={`${state.gpuMemoryUtilizationPct}% of ${gpu?.vram_gb ?? 0} GB${state.tpDegree > 1 ? "/GPU" : ""}`} />
+            <Stat label="Weights" value={`${result.weights_gb.toFixed(0)} GB`} sub={state.tpDegree > 1 ? `per GPU, ${state.tpDegree}-way split` : "all experts resident, if MoE"} />
+            <Stat label="KV cache budget" value={`${result.kv_budget_gb.toFixed(1)} GB`} sub={state.tpDegree > 1 ? "aggregate across the TP group" : "usable VRAM minus weights"} />
             <Stat
               label="Max concurrent sequences"
               value={`${result.max_concurrent_sequences}`}
-              sub={result.max_concurrent_sequences === 0 ? "weights alone exceed this GPU" : "per GPU, at this avg length"}
+              sub={
+                result.max_concurrent_sequences === 0
+                  ? "weights alone exceed this GPU"
+                  : state.tpDegree > 1
+                    ? "aggregate across the TP group"
+                    : "per GPU, at this avg length"
+              }
             />
           </div>
         </>

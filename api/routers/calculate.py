@@ -126,13 +126,17 @@ def calculate_inference(req: InferenceRequest):
             utilization=req.utilization,
             paged_attention=req.paged_attention,
             block_size=req.block_size,
+            tp_degree=req.tp_degree,
         )
+        if result.ttft_s == float("inf") or result.decode_step_s == float("inf"):
+            raise ValueError(f"Tensor parallelism (TP={req.tp_degree}) needs NVLink, but {gpu.name} has none.")
         capacity = estimate_serving_capacity(
             model,
             gpu,
             precision=req.precision,
             avg_seq_len=req.prompt_tokens + req.output_tokens,
             gpu_memory_utilization=req.gpu_memory_utilization,
+            tp_degree=req.tp_degree,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -144,6 +148,8 @@ def calculate_inference(req: InferenceRequest):
         prefill_interference_fraction=result.prefill_interference_fraction,
         colocated_tokens_per_sec_per_gpu=result.colocated_tokens_per_sec_per_gpu,
         disaggregated_tokens_per_sec_per_gpu=result.disaggregated_tokens_per_sec_per_gpu,
+        tp_communication_overhead_fraction=result.tp_communication_overhead_fraction,
+        tokens_per_sec_per_gpu_amortized=result.tokens_per_sec_per_gpu_amortized,
         usable_vram_gb=capacity.usable_vram_gb,
         weights_gb=capacity.weights_gb,
         kv_budget_gb=capacity.kv_budget_gb,

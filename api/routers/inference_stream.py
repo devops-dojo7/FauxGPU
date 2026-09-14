@@ -51,7 +51,14 @@ async def _stream(req: InferenceStreamRequest):
 
     try:
         gpu = get_gpu(req.gpu_id)
-        ttft_s = prefill_seconds(model, req.prompt_tokens, gpu, req.precision, req.utilization, req.cache_hit_fraction)
+        ttft_s = prefill_seconds(
+            model, req.prompt_tokens, gpu, req.precision, req.utilization, req.cache_hit_fraction, req.tp_degree
+        )
+        if ttft_s == float("inf"):
+            raise ValueError(f"Tensor parallelism (TP={req.tp_degree}) needs NVLink, but {gpu.name} has none.")
+        # decode_step_seconds below shares this exact (tp_degree, gpu.nvlink_gbps)
+        # feasibility gate, so it can never go inf (and asyncio.sleep it forever)
+        # once ttft_s has already come back finite.
     except ValueError as e:
         yield {"event": "error", "data": json.dumps({"detail": str(e)})}
         return
@@ -64,7 +71,9 @@ async def _stream(req: InferenceStreamRequest):
     last_step_s = 0.0
     for i in range(req.max_output_tokens):
         kv_tokens = req.prompt_tokens + i
-        last_step_s = decode_step_seconds(model, gpu, req.precision, batch_size=1, avg_kv_tokens=kv_tokens)
+        last_step_s = decode_step_seconds(
+            model, gpu, req.precision, batch_size=1, avg_kv_tokens=kv_tokens, tp_degree=req.tp_degree
+        )
         await asyncio.sleep(last_step_s)
         total_decode_s += last_step_s
         yield {"event": "token", "data": json.dumps({"index": i + 1, "step_s": last_step_s})}

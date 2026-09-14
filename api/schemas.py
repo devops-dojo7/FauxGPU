@@ -98,6 +98,7 @@ class InferenceRequest(BaseModel):
     paged_attention: bool = False
     block_size: int = 16
     gpu_memory_utilization: float = 0.9
+    tp_degree: int = 1
 
 
 class InferenceResponse(BaseModel):
@@ -107,6 +108,8 @@ class InferenceResponse(BaseModel):
     prefill_interference_fraction: float
     colocated_tokens_per_sec_per_gpu: float
     disaggregated_tokens_per_sec_per_gpu: float
+    tp_communication_overhead_fraction: float
+    tokens_per_sec_per_gpu_amortized: float
     usable_vram_gb: float
     weights_gb: float
     kv_budget_gb: float
@@ -312,6 +315,7 @@ class InferenceStreamRequest(BaseModel):
     max_output_tokens: int = 80
     cache_hit_fraction: float = 0.0
     utilization: float = 0.35
+    tp_degree: int = 1
 
 
 class K8sAvailabilityResponse(BaseModel):

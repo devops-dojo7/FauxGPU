@@ -44,6 +44,20 @@ async def test_stream_emits_error_for_unknown_gpu():
 
 
 @pytest.mark.anyio
+async def test_stream_emits_error_for_tensor_parallel_without_nvlink():
+    req = InferenceStreamRequest(
+        model=MODEL, gpu_id="l40s", prompt="hi", prompt_tokens=4, max_output_tokens=3, tp_degree=4
+    )
+    events = await _collect(req)
+
+    assert len(events) == 1
+    name, data = events[0]
+    assert name == "error"
+    assert "TP=4" in data["detail"]
+    assert "NVLink" in data["detail"]
+
+
+@pytest.mark.anyio
 async def test_stream_zero_output_tokens_emits_no_token_events():
     req = InferenceStreamRequest(model=MODEL, gpu_id="h100-sxm", prompt="hi", prompt_tokens=4, max_output_tokens=0)
     events = await _collect(req)

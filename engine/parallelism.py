@@ -36,11 +36,14 @@ def tensor_parallel_communication_seconds(
     precision: str,
     tp_degree: int,
     nvlink_gbps: float | None,
+    forward_and_backward: bool = True,
 ) -> float:
     """Two activation all-reduces per layer (attention output + MLP output),
-    times two for forward+backward, over NVLink (TP requires low-latency
-    intra-node links — modeled here as unavailable, i.e. infinite time, if
-    the GPU has no NVLink and tp_degree > 1).
+    over NVLink (TP requires low-latency intra-node links — modeled here as
+    unavailable, i.e. infinite time, if the GPU has no NVLink and
+    tp_degree > 1). forward_and_backward=True (training's default) doubles
+    that for the backward pass; inference call sites pass False, since
+    serving only ever runs a forward pass.
     """
     if tp_degree <= 1:
         return 0.0
@@ -49,7 +52,8 @@ def tensor_parallel_communication_seconds(
 
     activation_bytes = batch_size * seq_len * model.hidden_dim * bytes_per_param(precision)
     bytes_per_allreduce = activation_bytes * 2 * (tp_degree - 1) / tp_degree
-    allreduces_per_step = model.num_layers * 2 * 2  # attn+mlp, x2 for fwd+bwd
+    passes = 2 if forward_and_backward else 1
+    allreduces_per_step = model.num_layers * 2 * passes  # attn+mlp, x2 for fwd+bwd when training
     bandwidth_bytes_per_sec = nvlink_gbps * GBPS_TO_BYTES_PER_SEC
     return (bytes_per_allreduce * allreduces_per_step) / bandwidth_bytes_per_sec
 

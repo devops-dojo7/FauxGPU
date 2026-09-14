@@ -35,11 +35,13 @@ export function MultiRequestPlayground({
   modelLabel,
   gpu,
   precision,
+  tpDegree,
 }: {
   model: ModelShape;
   modelLabel?: string;
   gpu: GpuSpec | undefined;
   precision: string;
+  tpDegree: number;
 }) {
   const [lanes, setLanes] = useState<Lane[]>(() => DEFAULT_PROMPTS.slice(0, 2).map(makeLane));
   const [cacheHitPct, setCacheHitPct] = useState(20);
@@ -94,10 +96,10 @@ export function MultiRequestPlayground({
 
     const withTokens = lanes.map((l) => ({ ...l, promptTokens: estimateTokens(l.prompt) }));
     const totalPeakKvTokens = withTokens.reduce((s, l) => s + l.promptTokens + l.maxOutputTokens, 0);
-    const fit = checkVramFit(model, gpu, precision, totalPeakKvTokens);
+    const fit = checkVramFit(model, gpu, precision, totalPeakKvTokens, tpDegree);
     if (!fit.fits) {
       setOomError(
-        `Out of memory: if all ${lanes.length} requests were decoding at once, KV cache + weights would need ~${fit.requiredGb.toFixed(1)} GB, but ${gpu.name} only has ${fit.capacityGb} GB. Reduce concurrent requests, output length, or pick a bigger GPU.`,
+        `Out of memory: if all ${lanes.length} requests were decoding at once, KV cache + weights would need ~${fit.requiredGb.toFixed(1)} GB${tpDegree > 1 ? ` per GPU (${tpDegree}-way split)` : ""}, but ${gpu.name} only has ${fit.capacityGb} GB. Reduce concurrent requests, output length, pick a bigger GPU, or increase tensor-parallel GPUs.`,
       );
       return;
     }
@@ -143,6 +145,7 @@ export function MultiRequestPlayground({
             max_output_tokens: lane.maxOutputTokens,
             cache_hit_fraction: cacheHitPct / 100,
             utilization: 0.35,
+            tp_degree: tpDegree,
           },
           controller.signal,
         )) {

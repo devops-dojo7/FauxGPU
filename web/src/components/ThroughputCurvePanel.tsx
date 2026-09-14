@@ -16,6 +16,7 @@ export function ThroughputCurvePanel({
   outputTokens,
   decodeBatchSize,
   cacheHitFraction,
+  tpDegree,
 }: {
   model: ModelShape;
   gpu: GpuSpec | undefined;
@@ -24,6 +25,7 @@ export function ThroughputCurvePanel({
   outputTokens: number;
   decodeBatchSize: number;
   cacheHitFraction: number;
+  tpDegree: number;
 }) {
   const [series, setSeries] = useState<LineSeries[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -49,6 +51,7 @@ export function ThroughputCurvePanel({
           paged_attention: true,
           block_size: 16,
           gpu_memory_utilization: 0.9,
+          tp_degree: tpDegree,
         }).then((r) => ({ rps, r })),
       ),
     )
@@ -68,7 +71,7 @@ export function ThroughputCurvePanel({
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [model, gpu, precision, promptTokens, outputTokens, decodeBatchSize, cacheHitFraction]);
+  }, [model, gpu, precision, promptTokens, outputTokens, decodeBatchSize, cacheHitFraction, tpDegree]);
 
   return (
     <Card title="Throughput vs. request rate">

@@ -131,6 +131,7 @@ export interface InferenceRequest {
   paged_attention: boolean;
   block_size: number;
   gpu_memory_utilization: number;
+  tp_degree: number;
 }
 
 export interface InferenceResponse {
@@ -140,6 +141,8 @@ export interface InferenceResponse {
   prefill_interference_fraction: number;
   colocated_tokens_per_sec_per_gpu: number;
   disaggregated_tokens_per_sec_per_gpu: number;
+  tp_communication_overhead_fraction: number;
+  tokens_per_sec_per_gpu_amortized: number;
   usable_vram_gb: number;
   weights_gb: number;
   kv_budget_gb: number;
@@ -235,6 +238,7 @@ export interface InferenceStreamRequest {
   max_output_tokens: number;
   cache_hit_fraction: number;
   utilization: number;
+  tp_degree: number;
 }
 
 export interface K8sAvailability {
