@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { GpuSpec } from "@/lib/types";
+import { groupGpusByVendor } from "@/lib/format";
 import { Card, Select, Toggle } from "./ui";
 import { RadarChart, RadarAxis, RadarSeries } from "./RadarChart";
 
@@ -224,10 +225,7 @@ export function GpuComparePanel({ gpus }: { gpus: GpuSpec[] }) {
   const [highlightBest, setHighlightBest] = useState(true);
   const [diffsOnly, setDiffsOnly] = useState(false);
 
-  const byVendor = gpus.reduce<Record<string, GpuSpec[]>>((acc, g) => {
-    (acc[g.vendor] ??= []).push(g);
-    return acc;
-  }, {});
+  const byVendor = groupGpusByVendor(gpus);
 
   const addSlot = () => {
     if (slots.length >= MAX_SLOTS) return;
@@ -309,7 +307,7 @@ export function GpuComparePanel({ gpus }: { gpus: GpuSpec[] }) {
                 <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: SLOT_COLORS[i % SLOT_COLORS.length] }} />
                 <div className="flex-1 min-w-0">
                   <Select value={slot.gpuId} onChange={(id) => updateSlot(slot.id, id)}>
-                    {Object.entries(byVendor).map(([vendor, list]) => (
+                    {byVendor.map(([vendor, list]) => (
                       <optgroup key={vendor} label={vendor}>
                         {list.map((g) => (
                           <option key={g.id} value={g.id}>

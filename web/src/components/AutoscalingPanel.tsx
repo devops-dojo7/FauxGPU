@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { simulateAutoscaling } from "@/lib/api";
-import { AutoscalingResponse, GpuSpec, MODEL_PRESETS } from "@/lib/types";
-import { formatCompact } from "@/lib/format";
+import { AutoscalingResponse, GpuSpec, MODEL_PRESET_GROUPS, MODEL_PRESETS } from "@/lib/types";
+import { formatCompact, groupGpusByVendor } from "@/lib/format";
 import { Card, Field, NumberInput, Select, Stat, Toggle } from "./ui";
 import { LineChart } from "./LineChart";
 
@@ -97,10 +97,14 @@ export function AutoscalingPanel({ gpus }: { gpus: GpuSpec[] }) {
           <div className="col-span-2">
             <Field label="Model">
               <Select value={presetId} onChange={setPresetId}>
-                {MODEL_PRESETS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
+                {MODEL_PRESET_GROUPS.map((g) => (
+                  <optgroup key={g.tier} label={g.label}>
+                    {g.presets.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </Select>
             </Field>
@@ -108,10 +112,14 @@ export function AutoscalingPanel({ gpus }: { gpus: GpuSpec[] }) {
           <div className="col-span-2">
             <Field label="GPU (per replica)">
               <Select value={gpuId} onChange={setGpuId}>
-                {gpus.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
+                {groupGpusByVendor(gpus).map(([vendor, list]) => (
+                  <optgroup key={vendor} label={vendor}>
+                    {list.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </Select>
             </Field>

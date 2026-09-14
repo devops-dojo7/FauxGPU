@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { simulateScheduler } from "@/lib/api";
 import { GpuSpec, SchedJob, SchedulerResponse } from "@/lib/types";
+import { groupGpusByVendor } from "@/lib/format";
 import { Card, Field, NumberInput, Select, Stat, Toggle } from "./ui";
 import { GanttChart, GanttRow } from "./GanttChart";
 
@@ -96,10 +97,14 @@ export function SchedulerPanel({ gpus }: { gpus: GpuSpec[] }) {
           <div className="col-span-2">
             <Field label="GPU type">
               <Select value={gpuId} onChange={setGpuId}>
-                {gpus.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
+                {groupGpusByVendor(gpus).map(([vendor, list]) => (
+                  <optgroup key={vendor} label={vendor}>
+                    {list.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </Select>
             </Field>

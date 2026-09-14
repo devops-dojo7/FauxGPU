@@ -16,3 +16,12 @@ export function formatCompact(n: number): string {
 export function formatParams(params: number): string {
   return `${(params / 1e9).toFixed(1)}B params`;
 }
+
+/** Groups GPUs by vendor, preserving each vendor's first-appearance order (matches the catalog's own order) — for rendering a <select> as <optgroup>s. */
+export function groupGpusByVendor<T extends { vendor: string }>(gpus: T[]): [string, T[]][] {
+  const byVendor = gpus.reduce<Record<string, T[]>>((acc, g) => {
+    (acc[g.vendor] ??= []).push(g);
+    return acc;
+  }, {});
+  return Object.entries(byVendor);
+}

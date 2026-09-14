@@ -1,6 +1,7 @@
 "use client";
 
 import { GpuSpec } from "@/lib/types";
+import { groupGpusByVendor } from "@/lib/format";
 import { BadgePill, Card, Field, Select, Stat } from "./ui";
 
 const na = (v: number | string | null | undefined, suffix = "") => (v === null || v === undefined ? "—" : `${v}${suffix}`);
@@ -15,16 +16,12 @@ export function GpuPicker({
   onSelect: (id: string) => void;
 }) {
   const gpu = gpus.find((g) => g.id === selectedId);
-  const byVendor = gpus.reduce<Record<string, GpuSpec[]>>((acc, g) => {
-    (acc[g.vendor] ??= []).push(g);
-    return acc;
-  }, {});
 
   return (
     <Card title="GPU & Vendor">
       <Field label="GPU">
         <Select value={selectedId} onChange={onSelect}>
-          {Object.entries(byVendor).map(([vendor, list]) => (
+          {groupGpusByVendor(gpus).map(([vendor, list]) => (
             <optgroup key={vendor} label={vendor}>
               {list.map((g) => (
                 <option key={g.id} value={g.id}>

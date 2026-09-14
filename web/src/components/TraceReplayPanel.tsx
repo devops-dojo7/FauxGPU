@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchAiProviders, fetchLangfuseStatus, fetchSampleTrace, generateTraceNl, replayTrace } from "@/lib/api";
 import { AiProvider, AiProviderStatus, LangfuseStatus, SchedulerResponse } from "@/lib/types";
+import { groupGpusByVendor } from "@/lib/format";
 import { Card, Field, NumberInput, Select, Stat, Toggle } from "./ui";
 import { GanttChart, GanttRow } from "./GanttChart";
 import { AiModelSelect } from "./AiModelSelect";
 
 const TEAM_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6", "#14b8a6"];
 
-export function TraceReplayPanel({ gpus }: { gpus: { id: string; name: string }[] }) {
+export function TraceReplayPanel({ gpus }: { gpus: { id: string; name: string; vendor: string }[] }) {
   const [traceCsv, setTraceCsv] = useState("");
   const [gpuId, setGpuId] = useState(gpus[0]?.id ?? "");
   const [totalGpus, setTotalGpus] = useState(64);
@@ -101,10 +102,14 @@ export function TraceReplayPanel({ gpus }: { gpus: { id: string; name: string }[
           <div className="col-span-2">
             <Field label="GPU type">
               <Select value={gpuId} onChange={setGpuId}>
-                {gpus.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
+                {groupGpusByVendor(gpus).map(([vendor, list]) => (
+                  <optgroup key={vendor} label={vendor}>
+                    {list.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </Select>
             </Field>
