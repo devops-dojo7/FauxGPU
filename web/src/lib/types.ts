@@ -600,6 +600,25 @@ export const MODEL_PRESETS: ModelPreset[] = [
   // MoE + MLA — `kv_latent_dim` replaces the head-count KV formula with DeepSeek-V3's compressed latent.
   { id: "deepseek-v3", label: "DeepSeek-V3 671B-A37B (MoE+MLA)", params: 671.0e9, active_params: 37.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576 },
   { id: "deepseek-r1", label: "DeepSeek-R1 671B-A37B (MoE+MLA)", params: 671.0e9, active_params: 37.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576 },
+  // DeepSeek-V4.1-Flash (deepseek-ai/DeepSeek-V4.1-Flash on HF, + DeepSeek's
+  // own announcement) uses a new Causal Encoder-Decoder (CED) architecture —
+  // 40 layers split 20 encoder / 20 decoder — rather than the decoder-only
+  // stack this engine assumes, and its KV cache is projected once from the
+  // encoder's final hidden state (~890 bytes/token total, per DeepSeek)
+  // rather than growing per-layer the way this engine's num_layers x
+  // kv_latent_dim formula assumes — so treat this preset's KV-cache math as
+  // illustrative only, not a match for the real CED cache size. hidden_dim/
+  // num_heads/head_dim/kv_latent_dim below are the published config's
+  // hidden_size/num_attention_heads/v_head_dim/(kv_lora_rank 512 +
+  // qk_rope_head_dim 64), the same MLA dimensions as DeepSeek-V3/Kimi-K2
+  // above. Active params are asymmetric by design — 8B at prefill
+  // (encoder), 16B at decode (decoder) — decode's 16B is used here as the
+  // more representative generation-time cost. `params` is the officially
+  // stated 552B backbone only; it excludes a separate 196B "Engram"
+  // conditional-memory module DeepSeek describes, which has no field in
+  // this schema, so actual resident VRAM for this model runs higher than
+  // this preset's weights-VRAM math implies.
+  { id: "deepseek-v4.1-flash", label: "DeepSeek-V4.1-Flash 552B-A16B (MoE, CED approx.)", params: 552.0e9, active_params: 16.0e9, num_layers: 40, hidden_dim: 5120, num_heads: 64, head_dim: 128, kv_latent_dim: 576 },
   { id: "kimi-k2", label: "Kimi K2 1T-A32B (MoE+MLA)", params: 1000.0e9, active_params: 32.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576 },
   // Kimi K3's real published config (moonshotai/Kimi-K3) is a hybrid of 69
   // linear-attention "KDA" layers + 24 gated-MLA layers across 93 layers,
