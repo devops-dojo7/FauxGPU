@@ -1016,6 +1016,47 @@ gpus:
     l2_cache_mb: null
     interconnect_name: "ICI (Inter-Chip Interconnect)"
 
+  # Cerebras' wafer-scale engine — a single silicon wafer (46,225 mm^2) with
+  # 900,000 AI-optimized cores and 44GB of on-chip SRAM instead of HBM/DRAM,
+  # which is the whole point of the design: no off-chip memory-bandwidth
+  # bottleneck the way this table's other entries have one. Sold only as the
+  # CS-3 system (not a discrete card) — either purchased outright (reported
+  # ~$2-3M/system) or accessed via Cerebras' own inference cloud
+  # (cloud.cerebras.ai), which bills per-token rather than per GPU-hour, so
+  # there's no comparable price_per_hr_usd; left at 0 with a note, same
+  # treatment as this table's other non-rentable parts (MTIA, Maia).
+  # bf16_tflops uses Cerebras' own published "125 PFLOPS peak AI performance"
+  # headline figure; the company hasn't stated whether that's specifically a
+  # BF16 number, applied here to this table's 16-bit slot per convention.
+  # fp8_tflops and the exact SwarmX fabric bandwidth (published as "214 Pb/s"
+  # intra-wafer, a different topology than this table's inter-GPU scale-up
+  # slot) aren't force-fit into fields they don't cleanly map to — left null.
+  # idle_watts is an estimate (no vendor idle-power figure published).
+  - id: cerebras-wse3
+    vendor: Cerebras
+    name: WSE-3 (CS-3) 44GB SRAM
+    vram_gb: 44 # on-wafer SRAM, not HBM/DRAM — see note above
+    mem_bandwidth_gbps: 21000000 # 21 PB/s aggregate on-wafer SRAM bandwidth, Cerebras' own published figure — not directly comparable to the HBM parts elsewhere in this table
+    bf16_tflops: 125000 # Cerebras' own "125 PFLOPS peak AI performance" headline figure, see note above
+    fp8_tflops: null # no separate FP8 dense throughput figure published
+    nvlink_gbps: null # SwarmX fabric bandwidth describes a different interconnect topology — see note above
+    price_per_hr_usd: 0
+    price_note: "Not sold as $/hr cloud rental — CS-3 systems are purchased outright (reported ~$2-3M/system) or accessed via Cerebras' own inference cloud, billed per-token"
+    tdp_watts: 23000
+    idle_watts: 3000 # estimated — no vendor idle-power figure published
+    architecture: WSE-3
+    process_node: "TSMC 5nm"
+    launch_year: 2024
+    transistors_b: 4000
+    sm_count: null
+    core_count: 900000
+    core_label: AI Cores
+    matrix_core_count: null
+    matrix_core_label: null
+    boost_clock_ghz: null
+    l2_cache_mb: null
+    interconnect_name: "SwarmX fabric (intra-wafer + up to 2048-system cluster scale-out)"
+
 # Interconnect fabrics used to join GPUs beyond a single NVLink domain (node-to-node).
 fabrics:
   - id: ethernet-100g
