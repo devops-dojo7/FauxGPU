@@ -153,6 +153,25 @@ Change `values.yaml` (`trainer.topologyShape`, `trainer.gpuModel`,
 step time and communication overhead change with the simulated topology.
 Tear down with `k3d cluster delete simgpu`.
 
+### Install without building (published images)
+
+Every tagged release publishes multi-arch (`linux/amd64` + `linux/arm64`)
+images and the Helm chart itself to GHCR via
+[`.github/workflows/release.yml`](.github/workflows/release.yml), so you can
+skip the `docker build` / `k3d image import` steps above entirely — on
+either an Intel/AMD or an Apple Silicon/ARM node:
+
+```bash
+k3d cluster create simgpu --agents 2 --wait
+helm install simgpu oci://ghcr.io/devops-dojo7/fauxgpu/charts/simgpu --version 0.1.0
+```
+
+To cut a new release yourself: push a `vX.Y.Z` tag (or run the workflow
+manually with a version input) and the workflow builds, pushes, and
+publishes everything for that version. Note the first publish under a new
+image/chart name lands as a **private** GHCR package — flip it to public
+once in that package's GHCR settings, or it won't pull anonymously.
+
 ### GPU Operator Playground
 
 Want the guided version of the walkthrough below instead of copy-pasting

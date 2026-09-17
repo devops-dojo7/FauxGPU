@@ -1,0 +1,134 @@
+name: Release images and chart
+
+# Builds every component image for both linux/amd64 and linux/arm64 and
+# publishes them, plus the Helm chart, to GHCR — so a fresh cluster (Intel/AMD
+# or Apple Silicon/ARM node) can run:
+#
+#   helm install simgpu oci://ghcr.io/<owner>/fauxgpu/charts/simgpu --version X.Y.Z
+#
+# with no local `docker build` / `k3d image import` step. The chart pushed
+# here is NOT the same values.yaml checked into git: this workflow rewrites
+# the five `image:` fields (in its own checkout only, never committed) to
+# point at the ghcr.io images it just built, so the published chart works
+# standalone. The repo's own k3s/helm/simgpu/values.yaml keeps its
+# `simgpu/*:dev` local-build tags untouched, for the README "Quick start"
+# flow.
+#
+# Trigger: push a `vX.Y.Z` tag, or run manually via workflow_dispatch with a
+# version input (handy for re-publishing without cutting a new tag).
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g. 0.2.0, no leading v)"
+        required: true
+
+env:
+  IMAGE_NAMESPACE: ${{ github.repository_owner }}/fauxgpu
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-and-push:
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - component: device-plugin
+            context: k3s/device-plugin
+            dockerfile: k3s/device-plugin/Dockerfile
+          - component: api
+            context: .
+            dockerfile: api/Dockerfile
+          - component: trainer
+            context: .
+            dockerfile: k3s/trainer/Dockerfile
+          - component: inference-server
+            context: .
+            dockerfile: k3s/inference-server/Dockerfile
+          - component: web
+            context: web
+            dockerfile: web/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ env.IMAGE_NAMESPACE }}/${{ matrix.component }}:${{ needs.version.outputs.version }}
+            ghcr.io/${{ env.IMAGE_NAMESPACE }}/${{ matrix.component }}:latest
+
+  publish-chart:
+    needs: [version, build-and-push]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.15.0
+
+      - name: Point chart values at the images just published
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          NS: ${{ env.IMAGE_NAMESPACE }}
+        run: |
+          set -euo pipefail
+          CHART=k3s/helm/simgpu
+          sed -i \
+            -e "s|^version:.*|version: ${VERSION}|" \
+            -e "s|^appVersion:.*|appVersion: \"${VERSION}\"|" \
+            "$CHART/Chart.yaml"
+          sed -i \
+            -e "s|simgpu/device-plugin:dev|ghcr.io/${NS}/device-plugin:${VERSION}|" \
+            -e "s|simgpu/api:dev|ghcr.io/${NS}/api:${VERSION}|" \
+            -e "s|simgpu/trainer:dev|ghcr.io/${NS}/trainer:${VERSION}|" \
+            -e "s|simgpu/inference-server:dev|ghcr.io/${NS}/inference-server:${VERSION}|" \
+            -e "s|simgpu/web:dev|ghcr.io/${NS}/web:${VERSION}|" \
+            "$CHART/values.yaml"
+
+      - name: Package and push chart
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          NS: ${{ env.IMAGE_NAMESPACE }}
+        run: |
+          set -euo pipefail
+          helm package k3s/helm/simgpu --destination /tmp
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          helm push "/tmp/simgpu-${VERSION}.tgz" "oci://ghcr.io/${NS}/charts"
