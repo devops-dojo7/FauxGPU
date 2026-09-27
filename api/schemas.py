@@ -26,6 +26,10 @@ class VramRequest(BaseModel):
     fp32_master_copy: bool = True
     checkpointing: bool = False
     training: bool = True
+    zero_stage: int = Field(
+        0, ge=0, le=3, description="ZeRO-DP/FSDP model-state sharding stage: 0=off, 1=Pos, 2=Pos+g, 3=Pos+g+p"
+    )
+    dp_size: int = Field(1, ge=1, description="Data-parallel replica count zero_stage shards model states across")
 
 
 class VramResponse(BaseModel):
@@ -67,6 +71,16 @@ class CostRequest(BaseModel):
     batch_size: int = 1
     seq_len: int = 2048
     num_microbatches: int = 1
+    zero_stage: int = Field(
+        0,
+        ge=0,
+        le=3,
+        description=(
+            "ZeRO-DP/FSDP model-state sharding stage: 0=off, 1=Pos, 2=Pos+g, 3=Pos+g+p. "
+            "Shards across topology's data-parallel replica group (topology.gpus_per_node * "
+            "topology.num_nodes, before any tp_degree/pp_degree multiplier) — see engine.memory."
+        ),
+    )
     carbon_region: str = Field(
         "global-avg", description="Grid carbon-intensity region — see engine.carbon.GRID_CARBON_INTENSITY_G_PER_KWH"
     )

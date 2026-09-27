@@ -1,8 +1,8 @@
 import pytest
 from fastapi import HTTPException
 
-from api.routers.calculate import calculate_cost, calculate_spot_pricing
-from api.schemas import CostRequest, ModelShapeIn, SpotPricingRequest, TopologyRequest
+from api.routers.calculate import calculate_cost, calculate_spot_pricing, calculate_vram
+from api.schemas import CostRequest, ModelShapeIn, SpotPricingRequest, TopologyRequest, VramRequest
 
 LLAMA2_7B = ModelShapeIn(params=6.74e9, num_layers=32, hidden_dim=4096, num_heads=32, head_dim=128)
 
@@ -84,3 +84,40 @@ def test_spot_pricing_request_schema_rejects_invalid_fields():
             checkpoint_size_gb=20.0,
             discount=1.0,  # lt=1
         )
+
+
+def _vram_request(**overrides) -> VramRequest:
+    defaults = dict(model=LLAMA2_7B, precision="bf16", batch_size=4, seq_len=2048)
+    defaults.update(overrides)
+    return VramRequest(**defaults)
+
+
+def test_vram_endpoint_zero_stage_shrinks_model_state_memory():
+    baseline = calculate_vram(_vram_request())
+    sharded = calculate_vram(_vram_request(zero_stage=3, dp_size=8))
+    assert sharded.optimizer_states_gb < baseline.optimizer_states_gb
+    assert sharded.gradients_gb < baseline.gradients_gb
+    assert sharded.weights_gb < baseline.weights_gb
+    # Activations are untouched by ZeRO-DP model-state sharding.
+    assert sharded.activations_gb == baseline.activations_gb
+
+
+def test_vram_endpoint_rejects_invalid_zero_stage():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        _vram_request(zero_stage=4)
+
+
+def test_cost_endpoint_zero_stage3_increases_communication_time():
+    baseline = calculate_cost(_cost_request())
+    sharded = calculate_cost(_cost_request(zero_stage=3))
+    assert sharded.communication_s_per_step == pytest.approx(baseline.communication_s_per_step * 1.5)
+    assert sharded.compute_s_per_step == baseline.compute_s_per_step
+
+
+def test_cost_endpoint_zero_stage_1_and_2_leave_communication_time_unchanged():
+    baseline = calculate_cost(_cost_request())
+    for stage in (1, 2):
+        result = calculate_cost(_cost_request(zero_stage=stage))
+        assert result.communication_s_per_step == pytest.approx(baseline.communication_s_per_step)

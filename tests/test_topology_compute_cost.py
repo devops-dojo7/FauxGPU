@@ -1,3 +1,5 @@
+import pytest
+
 from engine.compute import estimate_step_time
 from engine.cost import estimate_training_cost
 from engine.memory import ModelShape
@@ -49,3 +51,27 @@ def test_cost_scales_with_gpu_count_and_price():
     assert cost.total_cost_usd > 0
     assert cost.total_steps == -(-10**9 // 32768)  # ceil(1e9 / 32768)
     assert cost.cost_per_1k_tokens_usd > 0
+
+
+def test_zero_stage3_increases_communication_time_by_1_5x():
+    topo = build_topology("nvlink_node", gpu_id="h100-sxm", gpus_per_node=8)
+    baseline = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768)
+    zero3 = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768, zero_stage=3)
+    assert zero3.communication_s == pytest.approx(baseline.communication_s * 1.5)
+    # Compute time is unaffected by ZeRO's communication-volume change.
+    assert zero3.compute_s == baseline.compute_s
+
+
+def test_zero_stage1_and_2_do_not_change_communication_time():
+    topo = build_topology("nvlink_node", gpu_id="h100-sxm", gpus_per_node=8)
+    baseline = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768)
+    for stage in (0, 1, 2):
+        step = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768, zero_stage=stage)
+        assert step.communication_s == baseline.communication_s
+
+
+def test_zero_communication_multiplier_rejects_invalid_stage():
+    from engine.compute import zero_communication_multiplier
+
+    with pytest.raises(ValueError, match="zero_stage"):
+        zero_communication_multiplier(5)

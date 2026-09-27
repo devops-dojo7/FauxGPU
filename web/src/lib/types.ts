@@ -57,6 +57,8 @@ export interface VramRequest {
   fp32_master_copy: boolean;
   checkpointing: boolean;
   training: boolean;
+  zero_stage: number;
+  dp_size: number;
 }
 
 export interface VramResponse {
@@ -100,6 +102,7 @@ export interface CostRequest {
   batch_size: number;
   seq_len: number;
   num_microbatches: number;
+  zero_stage: number;
   carbon_region: string;
 }
 

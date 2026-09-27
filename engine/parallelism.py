@@ -92,12 +92,20 @@ def estimate_parallel_step_time(
     batch_size: int = 1,
     seq_len: int = 2048,
     num_microbatches: int = 1,
+    zero_stage: int = 0,
 ) -> ParallelStepTimeBreakdown:
     """DP step time (existing formula) with per-GPU compute divided by
     tp_degree, plus TP's per-layer activation all-reduce and PP's pipeline
     bubble overhead layered on top.
+
+    zero_stage shards model states across topology's DP replica group (see
+    engine.compute.estimate_step_time / engine.memory.compute_vram_breakdown)
+    — orthogonal to tp_degree/pp_degree, which shard the model itself via a
+    completely different mechanism.
     """
-    dp_step: StepTimeBreakdown = estimate_step_time(model, topology, tokens_per_step, precision, utilization)
+    dp_step: StepTimeBreakdown = estimate_step_time(
+        model, topology, tokens_per_step, precision, utilization, zero_stage=zero_stage
+    )
 
     compute_s = dp_step.compute_s / max(tp_degree, 1)
     bubble_s = compute_s * pipeline_bubble_fraction(pp_degree, num_microbatches)

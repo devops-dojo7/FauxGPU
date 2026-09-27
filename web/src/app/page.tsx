@@ -64,6 +64,8 @@ export default function Home() {
     checkpointing: false,
     training: true,
     customName: "",
+    zeroStage: 0,
+    dpSize: 8,
   });
 
   const [topoState, setTopoState] = useState<TopologyState>({
@@ -163,6 +165,8 @@ export default function Home() {
       fp32_master_copy: modelState.fp32MasterCopy,
       checkpointing: modelState.checkpointing,
       training: modelState.training,
+      zero_stage: modelState.zeroStage,
+      dp_size: modelState.dpSize,
     })
       .then(setVram)
       .catch((e) => setVramError(e.message))
@@ -193,6 +197,7 @@ export default function Home() {
       batch_size: costInputs.batchSize,
       seq_len: costInputs.seqLen,
       num_microbatches: costInputs.numMicrobatches,
+      zero_stage: modelState.zeroStage,
       carbon_region: costInputs.carbonRegion,
     })
       .then(setCost)
@@ -286,7 +291,15 @@ export default function Home() {
         {tab === "training" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="flex flex-col gap-6">
-              <VramPanel vram={vram} gpu={gpu} numGpus={topoState.shape === "single_gpu" ? 1 : numGpus} loading={vramLoading} error={vramError} />
+              <VramPanel
+                vram={vram}
+                gpu={gpu}
+                numGpus={topoState.shape === "single_gpu" ? 1 : numGpus}
+                loading={vramLoading}
+                error={vramError}
+                zeroStage={modelState.zeroStage}
+                dpSize={modelState.dpSize}
+              />
             </div>
 
             <div className="flex flex-col gap-6">

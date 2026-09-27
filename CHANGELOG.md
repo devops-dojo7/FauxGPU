@@ -5,6 +5,44 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-27
+
+ZeRO-DP/FSDP model-state sharding — the biggest remaining gap in the
+simulation engine's coverage of how large-scale training actually works.
+
+### Added
+
+- **`engine.memory.compute_vram_breakdown`'s new `zero_stage`/`dp_size`
+  parameters** model ZeRO-DP (Rajbhandari et al. 2020,
+  https://arxiv.org/abs/1910.02054) / FSDP's equivalent sharding of
+  optimizer states (stage 1), + gradients (stage 2), and + parameters
+  (stage 3, FSDP's "full sharding" default) across a data-parallel group.
+  Verified byte-for-byte against the paper's own published worked example
+  (Table 1: a 7.5B model at 64-way DP lands at 31.4GB / 16.6GB / 1.88GB
+  for stages 1/2/3, matching this implementation exactly).
+- **`engine.compute.estimate_step_time`'s new `zero_stage` parameter**
+  applies the paper's own reported "modest 50% increase" in communication
+  volume for stage 3 (the extra per-layer parameter all-gather) — stages
+  1/2 leave communication volume unchanged, exactly as the paper
+  describes.
+- Wired into `POST /calculate/vram` (`zero_stage`/`dp_size` request
+  fields) and `POST /calculate/cost` (`zero_stage`, sharding across the
+  topology's existing data-parallel replica group). Web UI: a "ZeRO / FSDP
+  sharding" selector next to the existing optimizer/checkpointing
+  controls, and the VRAM breakdown panel now shows a stage-aware per-GPU
+  figure (previously divided post-hoc across the deployment's GPU count
+  regardless of any real sharding — ZeRO's per-rank memory is
+  fundamentally different from that even split).
+
+Verified via real HTTP calls against a running API instance (not just
+unit tests): `/calculate/vram` reproduces the paper's exact 120GB /
+31.41GB / 16.64GB / 1.88GB progression for stages 0-3; `/calculate/cost`
+confirms exactly 1.5x communication time at stage 3 and unchanged
+communication time at stages 1/2; confirmed the actual Next.js dev
+server + FastAPI request/response round-trip for the default Llama-2 7B
+preset. 17 new pytest tests; full suite green (261 tests, one unrelated
+pre-existing timing flake in test_runs_store.py).
+
 ## [0.2.4] - 2026-09-27
 
 Kubernetes production-hardening for the Helm chart: resource

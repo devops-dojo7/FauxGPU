@@ -43,6 +43,8 @@ def calculate_vram(req: VramRequest):
             fp32_master_copy=req.fp32_master_copy,
             checkpointing=req.checkpointing,
             training=req.training,
+            zero_stage=req.zero_stage,
+            dp_size=req.dp_size,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -79,6 +81,7 @@ def calculate_cost(req: CostRequest):
             batch_size=req.batch_size,
             seq_len=req.seq_len,
             num_microbatches=req.num_microbatches,
+            zero_stage=req.zero_stage,
         )
         if step.total_s == float("inf"):
             raise ValueError(

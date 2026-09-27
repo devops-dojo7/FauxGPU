@@ -18,18 +18,27 @@ export function VramPanel({
   numGpus,
   loading,
   error,
+  zeroStage,
+  dpSize,
 }: {
   vram: VramResponse | null;
   gpu: GpuSpec | undefined;
   numGpus: number;
   loading: boolean;
   error: string | null;
+  zeroStage: number;
+  dpSize: number;
 }) {
   const capacityPerGpu = gpu?.vram_gb ?? 0;
   const totalCapacity = capacityPerGpu * numGpus;
   const total = vram?.total_gb ?? 0;
-  // Naive even split across GPUs (real sharding strategies differ; this is for intuition).
-  const perGpu = numGpus > 0 ? total / numGpus : total;
+  // When ZeRO/FSDP sharding is off, this is a naive even split across GPUs
+  // (real non-ZeRO sharding strategies differ; this is for intuition only).
+  // When it's on, the backend has already sharded weights/gradients/
+  // optimizer-state across dpSize ranks (see engine.memory.
+  // compute_vram_breakdown) — `total` is already one rank's per-GPU
+  // figure, so it is used directly rather than divided again by numGpus.
+  const perGpu = zeroStage > 0 ? total : numGpus > 0 ? total / numGpus : total;
   const overflow = capacityPerGpu > 0 && perGpu > capacityPerGpu;
 
   return (
@@ -61,25 +70,35 @@ export function VramPanel({
           </div>
 
           <div className="mt-4 border-t border-hairline pt-3 flex items-baseline justify-between">
-            <span className="text-sm text-body">Total (per GPU, {numGpus}-way split)</span>
+            <span className="text-sm text-body">
+              {zeroStage > 0 ? `Per GPU (ZeRO stage ${zeroStage}, ${dpSize}-way sharded)` : `Total (per GPU, ${numGpus}-way split)`}
+            </span>
             <span className={`text-lg font-semibold tabular-nums ${overflow ? "text-error" : ""}`}>
               {formatGb(perGpu)} {capacityPerGpu > 0 && <span className="text-sm font-normal">/ {capacityPerGpu} GB</span>}
             </span>
           </div>
-          <p className="mt-1 text-xs text-muted-soft">
-            Assumes an ideal, perfectly even split across your {numGpus} selected GPU{numGpus > 1 ? "s" : ""} — it
-            isn&apos;t tied to the Tensor/Pipeline parallel degree set below, which is what actually determines how the
-            model is sharded in a real run.
-          </p>
+          {zeroStage > 0 ? (
+            <p className="mt-1 text-xs text-muted-soft">
+              ZeRO-DP/FSDP shards weights/gradients/optimizer-state across {dpSize} data-parallel ranks (Rajbhandari
+              et al. 2020) — activations and KV cache are unaffected. Independent of, and stackable with, the
+              Tensor/Pipeline parallel degree set below.
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-muted-soft">
+              Assumes an ideal, perfectly even split across your {numGpus} selected GPU{numGpus > 1 ? "s" : ""} — it
+              isn&apos;t tied to the Tensor/Pipeline parallel degree set below, which is what actually determines how the
+              model is sharded in a real run. Turn on ZeRO/FSDP sharding above for a stage-aware per-GPU figure.
+            </p>
+          )}
           {overflow && (
             <p className="mt-2 text-xs text-error">
               Doesn&apos;t fit in one {gpu?.name}. You&apos;d need more GPUs, a smaller batch/seq length, precision
-              reduction, or activation checkpointing. To try more/larger GPUs, head to the{" "}
+              reduction, activation checkpointing, or ZeRO/FSDP sharding. To try more/larger GPUs, head to the{" "}
               <span className="font-medium">Datacenter</span> tab — it lets you scale up the cluster size and GPU
               type and see how a model like this actually splits across a bigger fleet.
             </p>
           )}
-          {totalCapacity > 0 && (
+          {totalCapacity > 0 && zeroStage === 0 && (
             <p className="mt-2 text-xs text-muted">
               Total across {numGpus} GPU{numGpus > 1 ? "s" : ""}: {formatGb(total)} of {formatGb(totalCapacity)} available
             </p>

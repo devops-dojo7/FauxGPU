@@ -52,18 +52,40 @@ def ring_all_reduce_seconds(payload_bytes: float, num_gpus: int, bandwidth_gbps:
     return data_moved / bandwidth_bytes_per_sec
 
 
+# ZeRO stage 3 / FSDP "full sharding" needs an extra all-gather of each
+# layer's parameters before it can be used (forward and, again, backward),
+# on top of the reduce-scatter every ZeRO stage already does for
+# gradients — the ZeRO paper's own communication analysis (Rajbhandari et
+# al. 2020, Sec. 7) reports this lands at "a modest 50% increase" over
+# plain DP's baseline all-reduce volume. Stages 1/2 (optimizer
+# states/gradients only) do not change communication volume at all — only
+# stage 3's added parameter sharding does.
+ZERO_STAGE_3_COMM_MULTIPLIER = 1.5
+
+
+def zero_communication_multiplier(zero_stage: int) -> float:
+    if zero_stage not in (0, 1, 2, 3):
+        raise ValueError(f"zero_stage must be 0, 1, 2, or 3; got {zero_stage}")
+    return ZERO_STAGE_3_COMM_MULTIPLIER if zero_stage >= 3 else 1.0
+
+
 def estimate_step_time(
     model: ModelShape,
     topology: ClusterTopology,
     tokens_per_step: int,
     precision: str = "bf16",
     utilization: float = 0.35,
+    zero_stage: int = 0,
 ) -> StepTimeBreakdown:
     """Total wall-clock time for one data-parallel training step across the
     given topology. Compute happens in parallel per-GPU (tokens_per_step is
     split across GPUs); communication is the gradient all-reduce across the
     cluster's bottleneck link (NVLink within a node, the inter-node fabric
     once you scale beyond one node).
+
+    zero_stage (see engine.memory.compute_vram_breakdown for the memory
+    side of this) scales up communication time only at stage 3 — see
+    zero_communication_multiplier.
     """
     tokens_per_gpu = max(1, tokens_per_step // topology.total_gpus)
     step_flops = flops_per_step(model, tokens_per_gpu)
@@ -73,5 +95,6 @@ def estimate_step_time(
     grad_bytes = model.params * bytes_per_param(precision)
     bottleneck_gbps = topology.bottleneck_bandwidth_gbps()
     comm_s = ring_all_reduce_seconds(grad_bytes, topology.total_gpus, bottleneck_gbps)
+    comm_s *= zero_communication_multiplier(zero_stage)
 
     return StepTimeBreakdown(compute_s=compute_s, communication_s=comm_s)

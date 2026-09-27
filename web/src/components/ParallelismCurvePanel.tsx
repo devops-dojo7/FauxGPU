@@ -51,6 +51,7 @@ export function ParallelismCurvePanel({
           batch_size: batchSize,
           seq_len: seqLen,
           num_microbatches: numMicrobatches,
+          zero_stage: 0,
           carbon_region: "global-avg",
         })
           .then((r) => ({ tp, r, ok: true as const }))

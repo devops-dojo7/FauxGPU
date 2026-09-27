@@ -14,6 +14,8 @@ export interface ModelPanelState {
   checkpointing: boolean;
   training: boolean;
   customName: string;
+  zeroStage: number;
+  dpSize: number;
 }
 
 /** Display name for a model config — the custom name if set, else the matching preset's label. */
@@ -147,6 +149,24 @@ export function ModelPanel({
           </>
         )}
       </div>
+
+      {state.training && (
+        <div className="mt-3 flex flex-wrap items-end gap-4 border-t border-hairline pt-4">
+          <Field label="ZeRO / FSDP sharding">
+            <Select value={String(state.zeroStage)} onChange={(v) => set({ zeroStage: Number(v) })}>
+              <option value="0">Off (full replicas)</option>
+              <option value="1">Stage 1 — optimizer states (Pos)</option>
+              <option value="2">Stage 2 — + gradients (Pos+g)</option>
+              <option value="3">Stage 3 — + params (Pos+g+p, FSDP full)</option>
+            </Select>
+          </Field>
+          {state.zeroStage > 0 && (
+            <Field label="DP replicas sharded across">
+              <NumberInput value={state.dpSize} min={1} max={4096} onChange={(v) => set({ dpSize: v })} />
+            </Field>
+          )}
+        </div>
+      )}
     </Card>
   );
 }

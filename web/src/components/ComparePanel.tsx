@@ -213,6 +213,8 @@ export function ComparePanel({
           fp32_master_copy: workload.fp32MasterCopy,
           checkpointing: workload.checkpointing,
           training: workload.training,
+          zero_stage: 0,
+          dp_size: 1,
         }),
         canCost
           ? calculateCost({
@@ -233,6 +235,7 @@ export function ComparePanel({
               batch_size: costInputs.batchSize,
               seq_len: costInputs.seqLen,
               num_microbatches: costInputs.numMicrobatches,
+              zero_stage: 0,
               carbon_region: costInputs.carbonRegion,
             })
           : Promise.resolve(null),

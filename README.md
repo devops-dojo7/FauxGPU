@@ -37,8 +37,9 @@ themselves are faux.
 
 - **Learning GPU internals**: VRAM breakdown (weights/gradients/optimizer
   states/activations/KV-cache), architecture variants (GQA, MoE, MLA),
-  NVLink/InfiniBand topology bandwidth, and training cost/power/carbon
-  modeling — all interactive, in a browser.
+  ZeRO-DP/FSDP model-state sharding stages, NVLink/InfiniBand topology
+  bandwidth, and training cost/power/carbon modeling — all interactive, in
+  a browser.
 - **Learning inference serving**: prefill (compute-bound TTFT) vs. decode
   (memory-bandwidth-bound TPOT), prefix-cache-hit routing, vLLM
   PagedAttention, speculative decoding, and [llm-d](https://llm-d.ai/)-style

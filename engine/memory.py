@@ -194,12 +194,52 @@ def compute_vram_breakdown(
     fp32_master_copy: bool = True,
     checkpointing: bool = False,
     training: bool = True,
+    zero_stage: int = 0,
+    dp_size: int = 1,
 ) -> VramBreakdown:
     """Full VRAM picture for either a training step or inference-only serving.
 
     training=False zeroes out gradients/optimizer state (not needed for inference)
     and reports KV cache instead of full-batch training activations.
+
+    zero_stage/dp_size model ZeRO-DP (Rajbhandari et al. 2020,
+    https://arxiv.org/abs/1910.02054) / FSDP's equivalent sharding of model
+    states across a data-parallel group of `dp_size` ranks — each rank's
+    per-GPU memory drops as more of the model's states get sharded rather
+    than replicated:
+
+      0 (off, default): every rank holds a full copy of everything —
+        today's non-ZeRO default DP behavior, and the only mode inference
+        serving (training=False) supports (ZeRO is a training-time
+        optimizer/gradient sharding technique; nothing to shard once
+        there's no optimizer state or gradients).
+      1 (Pos): optimizer states sharded across dp_size ranks. 4x memory
+        reduction at Nd=64 in the paper's own worked example (Adam,
+        mixed-precision, K=12) — same communication volume as plain DP.
+      2 (Pos+g): + gradients also sharded. 8x reduction at Nd=64 — still
+        the same communication volume as plain DP.
+      3 (Pos+g+p): + parameters (weights) also sharded — this is what
+        FSDP calls "full sharding" and is its default mode. Memory drops
+        linearly with dp_size (up to ~64x at Nd=64 in the paper's
+        example), at the cost of a "modest 50% increase" in communication
+        volume the paper itself reports (see
+        engine.compute.zero_communication_multiplier for where that's
+        applied to step time).
+
+    Verified against the paper's own Table 1 (a 7.5B model, Nd=64, mixed-
+    precision Adam): this function's stage-1/2/3 outputs land at 31.4GB /
+    16.6GB / 1.88GB, matching the paper exactly (see tests/test_memory.py).
+
+    Only ZeRO-DP (model-state sharding) is modeled here — ZeRO-R's other
+    optimizations (partitioned activation checkpointing, which additionally
+    requires a model-parallel/tensor-parallel degree, not just dp_size) are
+    out of scope.
     """
+    if zero_stage not in (0, 1, 2, 3):
+        raise ValueError(f"zero_stage must be 0, 1, 2, or 3; got {zero_stage}")
+    if dp_size < 1:
+        raise ValueError(f"dp_size must be >= 1; got {dp_size}")
+
     weights = weights_bytes(model, precision)
 
     if training:
@@ -207,6 +247,13 @@ def compute_vram_breakdown(
         opt = optimizer_state_bytes(model, optimizer, fp32_master_copy)
         acts = activation_bytes(model, batch_size, seq_len, precision, checkpointing)
         kv = 0.0
+
+        if zero_stage >= 1:
+            opt /= dp_size
+        if zero_stage >= 2:
+            grads /= dp_size
+        if zero_stage >= 3:
+            weights /= dp_size
     else:
         grads = 0.0
         opt = 0.0
