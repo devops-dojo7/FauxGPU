@@ -59,6 +59,9 @@ export interface VramRequest {
   training: boolean;
   zero_stage: number;
   dp_size: number;
+  peft_method: string;
+  peft_rank: number;
+  peft_target_modules: number;
 }
 
 export interface VramResponse {

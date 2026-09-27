@@ -20,6 +20,7 @@ export function VramPanel({
   error,
   zeroStage,
   dpSize,
+  peftMethod,
 }: {
   vram: VramResponse | null;
   gpu: GpuSpec | undefined;
@@ -28,17 +29,22 @@ export function VramPanel({
   error: string | null;
   zeroStage: number;
   dpSize: number;
+  peftMethod: string;
 }) {
   const capacityPerGpu = gpu?.vram_gb ?? 0;
   const totalCapacity = capacityPerGpu * numGpus;
   const total = vram?.total_gb ?? 0;
+  const peftLabel = peftMethod === "qlora" ? "QLoRA" : peftMethod === "lora" ? "LoRA" : null;
   // When ZeRO/FSDP sharding is off, this is a naive even split across GPUs
   // (real non-ZeRO sharding strategies differ; this is for intuition only).
   // When it's on, the backend has already sharded weights/gradients/
   // optimizer-state across dpSize ranks (see engine.memory.
   // compute_vram_breakdown) — `total` is already one rank's per-GPU
   // figure, so it is used directly rather than divided again by numGpus.
-  const perGpu = zeroStage > 0 ? total : numGpus > 0 ? total / numGpus : total;
+  // LoRA/QLoRA are single-replica figures for the same reason: there's
+  // nothing DP-specific being sharded, so dividing by numGpus again would
+  // double-count whatever real parallelism the deployment actually uses.
+  const perGpu = zeroStage > 0 || peftLabel ? total : numGpus > 0 ? total / numGpus : total;
   const overflow = capacityPerGpu > 0 && perGpu > capacityPerGpu;
 
   return (
@@ -71,13 +77,23 @@ export function VramPanel({
 
           <div className="mt-4 border-t border-hairline pt-3 flex items-baseline justify-between">
             <span className="text-sm text-body">
-              {zeroStage > 0 ? `Per GPU (ZeRO stage ${zeroStage}, ${dpSize}-way sharded)` : `Total (per GPU, ${numGpus}-way split)`}
+              {peftLabel
+                ? `Per GPU (${peftLabel} — single replica)`
+                : zeroStage > 0
+                  ? `Per GPU (ZeRO stage ${zeroStage}, ${dpSize}-way sharded)`
+                  : `Total (per GPU, ${numGpus}-way split)`}
             </span>
             <span className={`text-lg font-semibold tabular-nums ${overflow ? "text-error" : ""}`}>
               {formatGb(perGpu)} {capacityPerGpu > 0 && <span className="text-sm font-normal">/ {capacityPerGpu} GB</span>}
             </span>
           </div>
-          {zeroStage > 0 ? (
+          {peftLabel ? (
+            <p className="mt-1 text-xs text-muted-soft">
+              {peftLabel === "QLoRA"
+                ? "QLoRA (Dettmers et al. 2023) freezes the base model in 4-bit NormalFloat and trains only a tiny low-rank adapter — this is what lets a 65B model fit on a single 48GB GPU in the paper's own headline result."
+                : "LoRA (Hu et al. 2021) freezes the base model and trains only a tiny low-rank adapter — no optimizer state is kept for the (vast majority) frozen parameters, unlike full fine-tuning."}
+            </p>
+          ) : zeroStage > 0 ? (
             <p className="mt-1 text-xs text-muted-soft">
               ZeRO-DP/FSDP shards weights/gradients/optimizer-state across {dpSize} data-parallel ranks (Rajbhandari
               et al. 2020) — activations and KV cache are unaffected. Independent of, and stackable with, the
@@ -93,12 +109,12 @@ export function VramPanel({
           {overflow && (
             <p className="mt-2 text-xs text-error">
               Doesn&apos;t fit in one {gpu?.name}. You&apos;d need more GPUs, a smaller batch/seq length, precision
-              reduction, activation checkpointing, or ZeRO/FSDP sharding. To try more/larger GPUs, head to the{" "}
+              reduction, activation checkpointing, or ZeRO/FSDP sharding{peftLabel ? "" : ", or LoRA/QLoRA fine-tuning"}. To try more/larger GPUs, head to the{" "}
               <span className="font-medium">Datacenter</span> tab — it lets you scale up the cluster size and GPU
               type and see how a model like this actually splits across a bigger fleet.
             </p>
           )}
-          {totalCapacity > 0 && zeroStage === 0 && (
+          {totalCapacity > 0 && zeroStage === 0 && !peftLabel && (
             <p className="mt-2 text-xs text-muted">
               Total across {numGpus} GPU{numGpus > 1 ? "s" : ""}: {formatGb(total)} of {formatGb(totalCapacity)} available
             </p>

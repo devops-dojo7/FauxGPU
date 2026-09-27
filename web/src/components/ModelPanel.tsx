@@ -16,6 +16,9 @@ export interface ModelPanelState {
   customName: string;
   zeroStage: number;
   dpSize: number;
+  peftMethod: string;
+  peftRank: number;
+  peftTargetModules: number;
 }
 
 /** Display name for a model config — the custom name if set, else the matching preset's label. */
@@ -153,7 +156,10 @@ export function ModelPanel({
       {state.training && (
         <div className="mt-3 flex flex-wrap items-end gap-4 border-t border-hairline pt-4">
           <Field label="ZeRO / FSDP sharding">
-            <Select value={String(state.zeroStage)} onChange={(v) => set({ zeroStage: Number(v) })}>
+            <Select
+              value={String(state.zeroStage)}
+              onChange={(v) => set({ zeroStage: Number(v), peftMethod: Number(v) > 0 ? "full" : state.peftMethod })}
+            >
               <option value="0">Off (full replicas)</option>
               <option value="1">Stage 1 — optimizer states (Pos)</option>
               <option value="2">Stage 2 — + gradients (Pos+g)</option>
@@ -164,6 +170,36 @@ export function ModelPanel({
             <Field label="DP replicas sharded across">
               <NumberInput value={state.dpSize} min={1} max={4096} onChange={(v) => set({ dpSize: v })} />
             </Field>
+          )}
+        </div>
+      )}
+
+      {state.training && (
+        <div className="mt-3 flex flex-wrap items-end gap-4 border-t border-hairline pt-4">
+          <Field label="Fine-tuning method">
+            <Select
+              value={state.peftMethod}
+              onChange={(v) => set({ peftMethod: v, zeroStage: v !== "full" ? 0 : state.zeroStage })}
+            >
+              <option value="full">Full fine-tuning (every param trainable)</option>
+              <option value="lora">LoRA (Hu et al. 2021) — frozen base + tiny adapter</option>
+              <option value="qlora">QLoRA (Dettmers et al. 2023) — 4-bit NF4 base + LoRA</option>
+            </Select>
+          </Field>
+          {state.peftMethod !== "full" && (
+            <>
+              <Field label="LoRA rank (r)">
+                <NumberInput value={state.peftRank} min={1} max={256} onChange={(v) => set({ peftRank: v })} />
+              </Field>
+              <Field label="Adapted matrices">
+                <Select value={String(state.peftTargetModules)} onChange={(v) => set({ peftTargetModules: Number(v) })}>
+                  <option value="1">1 (Wq only)</option>
+                  <option value="2">2 (Wq, Wv — paper&apos;s default)</option>
+                  <option value="3">3 (Wq, Wk, Wv)</option>
+                  <option value="4">4 (Wq, Wk, Wv, Wo)</option>
+                </Select>
+              </Field>
+            </>
           )}
         </div>
       )}

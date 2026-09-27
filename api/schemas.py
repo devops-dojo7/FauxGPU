@@ -30,6 +30,18 @@ class VramRequest(BaseModel):
         0, ge=0, le=3, description="ZeRO-DP/FSDP model-state sharding stage: 0=off, 1=Pos, 2=Pos+g, 3=Pos+g+p"
     )
     dp_size: int = Field(1, ge=1, description="Data-parallel replica count zero_stage shards model states across")
+    peft_method: str = Field(
+        "full",
+        description=(
+            "Parameter-efficient fine-tuning strategy: full (default, every param trainable) | "
+            "lora (Hu et al. 2021) | qlora (Dettmers et al. 2023, 4-bit NF4 base + LoRA). "
+            "Mutually exclusive with zero_stage != 0 — see engine.memory.compute_vram_breakdown."
+        ),
+    )
+    peft_rank: int = Field(8, ge=1, description="LoRA/QLoRA rank r — only used when peft_method is lora/qlora")
+    peft_target_modules: int = Field(
+        2, ge=1, le=4, description="Number of attention projection matrices (of Wq/Wk/Wv/Wo) adapted, 1-4"
+    )
 
 
 class VramResponse(BaseModel):

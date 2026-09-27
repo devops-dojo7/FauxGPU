@@ -45,6 +45,9 @@ def calculate_vram(req: VramRequest):
             training=req.training,
             zero_stage=req.zero_stage,
             dp_size=req.dp_size,
+            peft_method=req.peft_method,
+            peft_rank=req.peft_rank,
+            peft_target_modules=req.peft_target_modules,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

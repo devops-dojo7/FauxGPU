@@ -66,6 +66,9 @@ export default function Home() {
     customName: "",
     zeroStage: 0,
     dpSize: 8,
+    peftMethod: "full",
+    peftRank: 8,
+    peftTargetModules: 2,
   });
 
   const [topoState, setTopoState] = useState<TopologyState>({
@@ -167,6 +170,9 @@ export default function Home() {
       training: modelState.training,
       zero_stage: modelState.zeroStage,
       dp_size: modelState.dpSize,
+      peft_method: modelState.peftMethod,
+      peft_rank: modelState.peftRank,
+      peft_target_modules: modelState.peftTargetModules,
     })
       .then(setVram)
       .catch((e) => setVramError(e.message))
@@ -299,6 +305,7 @@ export default function Home() {
                 error={vramError}
                 zeroStage={modelState.zeroStage}
                 dpSize={modelState.dpSize}
+                peftMethod={modelState.peftMethod}
               />
             </div>
 

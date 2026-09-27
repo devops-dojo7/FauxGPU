@@ -121,3 +121,34 @@ def test_cost_endpoint_zero_stage_1_and_2_leave_communication_time_unchanged():
     for stage in (1, 2):
         result = calculate_cost(_cost_request(zero_stage=stage))
         assert result.communication_s_per_step == pytest.approx(baseline.communication_s_per_step)
+
+
+# --- LoRA / QLoRA (Hu et al. 2021 / Dettmers et al. 2023) ---
+
+
+def test_vram_endpoint_lora_shrinks_optimizer_state_and_gradients():
+    baseline = calculate_vram(_vram_request())
+    lora = calculate_vram(_vram_request(peft_method="lora", peft_rank=8, peft_target_modules=2))
+    assert lora.optimizer_states_gb < baseline.optimizer_states_gb
+    assert lora.gradients_gb < baseline.gradients_gb
+    # Base weights stay resident (frozen, not removed) — LoRA adds a tiny
+    # adapter on top rather than shrinking weights_gb.
+    assert lora.weights_gb >= baseline.weights_gb
+
+
+def test_vram_endpoint_qlora_shrinks_weights_too():
+    lora = calculate_vram(_vram_request(peft_method="lora"))
+    qlora = calculate_vram(_vram_request(peft_method="qlora"))
+    assert qlora.weights_gb < lora.weights_gb
+
+
+def test_vram_endpoint_rejects_unknown_peft_method():
+    with pytest.raises(HTTPException) as exc_info:
+        calculate_vram(_vram_request(peft_method="dora"))
+    assert exc_info.value.status_code == 400
+
+
+def test_vram_endpoint_rejects_peft_combined_with_zero_stage():
+    with pytest.raises(HTTPException) as exc_info:
+        calculate_vram(_vram_request(peft_method="lora", zero_stage=1, dp_size=8))
+    assert exc_info.value.status_code == 400

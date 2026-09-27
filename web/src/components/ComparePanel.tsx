@@ -215,6 +215,9 @@ export function ComparePanel({
           training: workload.training,
           zero_stage: 0,
           dp_size: 1,
+          peft_method: "full",
+          peft_rank: 8,
+          peft_target_modules: 2,
         }),
         canCost
           ? calculateCost({

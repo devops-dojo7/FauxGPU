@@ -114,22 +114,81 @@ def gradients_bytes(model: ModelShape, precision: str) -> float:
     return model.params * bytes_per_param(precision)
 
 
+def _optimizer_state_bytes_for_params(
+    num_params: float, optimizer: str = "adam", fp32_master_copy: bool = True
+) -> float:
+    """Core optimizer-state formula, parametrized on a raw param count rather
+    than a full ModelShape — shared by optimizer_state_bytes (the whole
+    model) and the LoRA/QLoRA path below (just the adapter's much smaller
+    trainable-param count, per Hu et al. 2021 — see lora_trainable_params).
+    """
+    if optimizer == "adam":
+        moments = 2 * num_params * 4.0  # first + second moment, fp32
+    elif optimizer == "sgd_momentum":
+        moments = 1 * num_params * 4.0
+    elif optimizer == "sgd":
+        moments = 0.0
+    else:
+        raise ValueError(f"Unknown optimizer: {optimizer!r}")
+    master_copy = num_params * 4.0 if fp32_master_copy else 0.0
+    return moments + master_copy
+
+
 def optimizer_state_bytes(
     model: ModelShape, optimizer: str = "adam", fp32_master_copy: bool = True
 ) -> float:
     """Optimizer state size, independent of training precision (mixed-precision
     training keeps optimizer moments/master weights in fp32 for stability).
     """
-    if optimizer == "adam":
-        moments = 2 * model.params * 4.0  # first + second moment, fp32
-    elif optimizer == "sgd_momentum":
-        moments = 1 * model.params * 4.0
-    elif optimizer == "sgd":
-        moments = 0.0
-    else:
-        raise ValueError(f"Unknown optimizer: {optimizer!r}")
-    master_copy = model.params * 4.0 if fp32_master_copy else 0.0
-    return moments + master_copy
+    return _optimizer_state_bytes_for_params(model.params, optimizer, fp32_master_copy)
+
+
+# --- LoRA (Hu et al. 2021, https://arxiv.org/abs/2106.09685) / QLoRA
+# (Dettmers et al. 2023, https://arxiv.org/abs/2305.14314) parameter-efficient
+# fine-tuning ---
+
+def lora_trainable_params(model: ModelShape, rank: int, target_modules: int = 2) -> float:
+    """Number of trainable LoRA parameters: |Theta| = 2 * L_hat * d_model * r
+    (Hu et al. 2021, Sec 5.1), where L_hat is the number of adapted weight
+    matrices (num_layers * target_modules) and r is the LoRA rank. Verified
+    against the paper's own Table 5 worked example on GPT-3 175B (hidden_dim
+    12288, 96 layers): target_modules=1, rank=8 gives exactly 18,874,368
+    (paper reports "~18M") — see tests/test_memory.py.
+
+    target_modules counts how many of the four self-attention projection
+    matrices (Wq, Wk, Wv, Wo) get an adapter, not which ones — the paper
+    only ever varies this count in its own formula (Table 5's rank column
+    single-matrix vs. two-matrix combos), and its own best-performing
+    setup adapts exactly two (Wq, Wv), the default here.
+    """
+    if rank < 1:
+        raise ValueError(f"rank must be >= 1; got {rank}")
+    if target_modules not in (1, 2, 3, 4):
+        raise ValueError(f"target_modules must be 1-4 (of Wq/Wk/Wv/Wo); got {target_modules}")
+    l_hat = model.num_layers * target_modules
+    return 2 * l_hat * model.hidden_dim * rank
+
+
+# QLoRA's block-wise quantization overhead (Dettmers et al. 2023, Sec 3):
+# a 32-bit quantization constant per 64-value block costs 32/64 = 0.5 bits/
+# param on top of the storage dtype itself. Double Quantization re-quantizes
+# those constants (8-bit codes, blocksize 256), cutting the overhead to
+# 8/64 + 32/(64*256) = 0.127 bits/param — the paper's own reported "average
+# of about 0.37 bits per parameter" saved (0.5 - 0.127 = 0.373).
+QLORA_BLOCKWISE_OVERHEAD_BITS = 0.5
+QLORA_DOUBLE_QUANT_OVERHEAD_BITS = 0.127
+
+
+def quantized_weight_bytes(model: ModelShape, quant_bits: float = 4.0, double_quant: bool = True) -> float:
+    """Frozen base-model weight size under QLoRA's block-wise k-bit
+    quantization (default 4-bit NormalFloat, quant_bits=4.0), including the
+    per-parameter quantization-constant storage overhead. Verified against
+    the paper's own reported ~3GB saving from Double Quantization at 65B
+    params (65e9 * 0.373 bits / 8 == ~3.03GB) — see tests/test_memory.py.
+    """
+    overhead_bits = QLORA_DOUBLE_QUANT_OVERHEAD_BITS if double_quant else QLORA_BLOCKWISE_OVERHEAD_BITS
+    bits_per_param = quant_bits + overhead_bits
+    return model.params * bits_per_param / 8.0
 
 
 def activation_bytes(
@@ -185,6 +244,9 @@ def _to_gb(b: float) -> float:
     return b / 1e9
 
 
+PEFT_METHODS = ("full", "lora", "qlora")
+
+
 def compute_vram_breakdown(
     model: ModelShape,
     precision: str,
@@ -196,6 +258,9 @@ def compute_vram_breakdown(
     training: bool = True,
     zero_stage: int = 0,
     dp_size: int = 1,
+    peft_method: str = "full",
+    peft_rank: int = 8,
+    peft_target_modules: int = 2,
 ) -> VramBreakdown:
     """Full VRAM picture for either a training step or inference-only serving.
 
@@ -234,17 +299,70 @@ def compute_vram_breakdown(
     optimizations (partitioned activation checkpointing, which additionally
     requires a model-parallel/tensor-parallel degree, not just dp_size) are
     out of scope.
+
+    peft_method selects a parameter-efficient fine-tuning strategy in place
+    of full fine-tuning — the other reason (besides ZeRO) frontier-scale
+    fine-tuning is affordable at all:
+
+      "full" (default): every parameter is trainable — today's existing
+        behavior, unaffected by peft_rank/peft_target_modules.
+      "lora": LoRA (Hu et al. 2021, https://arxiv.org/abs/2106.09685).
+        Base weights stay frozen (still fully resident, in `precision`);
+        only a tiny pair of rank-`peft_rank` decomposition matrices per
+        adapted matrix are trainable (see engine.memory.lora_trainable_params
+        for the exact count, verified against the paper's own Table 5).
+        Gradients and optimizer state are computed for that tiny trainable
+        count only, not the full model — this is the "up to 2/3 VRAM
+        reduction" the paper itself reports, since there's no optimizer
+        state to keep for the (vast majority) frozen parameters.
+      "qlora": QLoRA (Dettmers et al. 2023, https://arxiv.org/abs/2305.14314).
+        LoRA's same tiny trainable adapter, but the frozen base weights are
+        additionally stored in 4-bit NormalFloat with Double Quantization
+        (see engine.memory.quantized_weight_bytes) instead of `precision` —
+        the combination that makes a 65B model fit on a single 48GB GPU,
+        per the paper's own headline result.
+
+    peft_rank/peft_target_modules only affect the "lora"/"qlora" paths —
+    LoRA's adapter weights are always kept in `precision` (the paper's own
+    "computation data type", e.g. bf16) regardless of the base weights'
+    storage format, since the adapter is what actually receives gradients.
+
+    zero_stage/dp_size and peft_method are mutually exclusive here (a
+    zero_stage other than 0 combined with a non-"full" peft_method raises
+    ValueError) — real systems do combine ZeRO/FSDP with LoRA at very large
+    scale, but modeling that interaction precisely is out of scope for this
+    teaching tool; each is fully modeled on its own.
     """
     if zero_stage not in (0, 1, 2, 3):
         raise ValueError(f"zero_stage must be 0, 1, 2, or 3; got {zero_stage}")
     if dp_size < 1:
         raise ValueError(f"dp_size must be >= 1; got {dp_size}")
+    if peft_method not in PEFT_METHODS:
+        raise ValueError(f"peft_method must be one of {PEFT_METHODS}; got {peft_method!r}")
+    if peft_method != "full" and zero_stage != 0:
+        raise ValueError(
+            f"zero_stage={zero_stage} combined with peft_method={peft_method!r} is not modeled "
+            "(mutually exclusive here) — see compute_vram_breakdown's docstring."
+        )
 
-    weights = weights_bytes(model, precision)
+    if peft_method == "qlora":
+        weights = quantized_weight_bytes(model)
+    else:
+        weights = weights_bytes(model, precision)
+
+    if peft_method in ("lora", "qlora"):
+        adapter_params = lora_trainable_params(model, peft_rank, peft_target_modules)
+        weights += adapter_params * bytes_per_param(precision)
 
     if training:
-        grads = gradients_bytes(model, precision)
-        opt = optimizer_state_bytes(model, optimizer, fp32_master_copy)
+        if peft_method in ("lora", "qlora"):
+            # Only the tiny adapter receives gradients/optimizer state — the
+            # frozen base model needs neither, which is LoRA's whole point.
+            grads = adapter_params * bytes_per_param(precision)
+            opt = _optimizer_state_bytes_for_params(adapter_params, optimizer, fp32_master_copy)
+        else:
+            grads = gradients_bytes(model, precision)
+            opt = optimizer_state_bytes(model, optimizer, fp32_master_copy)
         acts = activation_bytes(model, batch_size, seq_len, precision, checkpointing)
         kv = 0.0
 

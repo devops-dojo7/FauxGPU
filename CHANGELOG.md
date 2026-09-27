@@ -5,6 +5,56 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-27
+
+LoRA/QLoRA parameter-efficient fine-tuning — the other reason (besides
+ZeRO/FSDP) frontier-scale fine-tuning is affordable at all, and a real
+modeling gap the simulator previously had no way to represent.
+
+### Added
+
+- **`engine.memory.lora_trainable_params`** models LoRA (Hu et al. 2021,
+  https://arxiv.org/abs/2106.09685): `|Theta| = 2 * L_hat * d_model * r`.
+  Verified byte-for-byte against the paper's own Table 5 worked example on
+  GPT-3 175B (rank 8, one adapted matrix: exactly 18,874,368 trainable
+  params, matching the paper's own "~18M").
+- **`engine.memory.quantized_weight_bytes`** models QLoRA's (Dettmers et
+  al. 2023, https://arxiv.org/abs/2305.14314) 4-bit NormalFloat base-model
+  storage with Double Quantization. Verified against the paper's own
+  reported ~3GB saving from Double Quantization at 65B params.
+- **`engine.memory.compute_vram_breakdown`'s new `peft_method`/`peft_rank`/
+  `peft_target_modules` parameters**: `"full"` (existing behavior),
+  `"lora"` (frozen base weights + tiny trainable adapter — no optimizer
+  state kept for the frozen majority, matching the paper's own "up to 2/3
+  VRAM reduction"), and `"qlora"` (LoRA's adapter on top of a 4-bit NF4
+  frozen base). Mutually exclusive with `zero_stage` (each fully modeled
+  standalone; combining them is out of scope, same convention as the rest
+  of this teaching tool).
+- **`engine.checkpointing.checkpoint_size_gb`'s new `peft_method="lora"`
+  path** reproduces LoRA's own storage headline: the paper's GPT-3 175B
+  worked example (r=4, Wq+Wv, fp16) lands at ~35MB here too, a real
+  ~10,000x reduction from the 350GB full checkpoint — many task-specific
+  adapters can now share one base-model copy instead of each paying the
+  full checkpoint size.
+- Wired into `POST /calculate/vram` (`peft_method`/`peft_rank`/
+  `peft_target_modules` request fields). Web UI: a "Fine-tuning method"
+  selector (Full / LoRA / QLoRA) next to the existing ZeRO/FSDP controls
+  (mutually exclusive with each other, matching the engine), rank and
+  adapted-matrix-count inputs, and VRAM breakdown panel copy explaining
+  what each method actually does and why the numbers look the way they do.
+
+Verified via real HTTP calls against a running API instance: `/calculate/vram`
+for a LLaMA-65B-shaped model lands at 1040GB (full) / 131GB (LoRA) / 34GB
+(QLoRA) — QLoRA clears the paper's own "single 48GB GPU" headline claim
+with room to spare, and full fine-tuning's >1TB confirms the paper's own
+">780GB" figure (this simulator's default bf16 vs. the paper's fp16
+baseline accounts for the difference); GPT-3 175B's LoRA adapter checkpoint
+lands at 37.7MB, matching the paper's own "~35MB" almost exactly. Also
+confirmed the actual Next.js dev server + FastAPI request/response
+round-trip renders the new controls. 20 new pytest tests; full suite green
+(281 tests, one unrelated pre-existing timing flake in
+test_runs_store.py, same one noted in 0.4.0).
+
 ## [0.4.0] - 2026-09-27
 
 ZeRO-DP/FSDP model-state sharding — the biggest remaining gap in the
