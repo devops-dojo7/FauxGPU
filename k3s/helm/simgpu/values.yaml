@@ -29,7 +29,7 @@ image:
   # Shared tag for every component unless overridden per-component below.
   # Matches this chart's own Chart.yaml appVersion — the release pipeline
   # (.github/workflows/release.yml) keeps them in lockstep.
-  tag: "0.2.2"
+  tag: "0.2.3"
   pullPolicy: IfNotPresent
 
 # =============================================================================

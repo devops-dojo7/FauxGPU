@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-09-27
+
+- Added `k3s/helm/simgpu/README.md` — Artifact Hub (and `helm show readme`)
+  display whatever `README.md` is packaged alongside `Chart.yaml`, and
+  there wasn't one; this is a chart-focused quickstart (`helm install`,
+  a `values.yaml` config-surface overview, the optional-integration
+  `--set-string` pattern) rather than duplicating the full project README.
+- Filled in `artifacthub.io/repositoryID` in `artifacthub-repo.yml` now
+  that the chart is listed on Artifact Hub as `fauxgpu/fauxgpu`,
+  completing the Verified Publisher requirement.
+
 ## [0.2.2] - 2026-09-27
 
 Makes the Helm chart installable with zero local builds, and its

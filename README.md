@@ -131,7 +131,7 @@ Silicon/ARM node:
 
 ```bash
 k3d cluster create simgpu --agents 2 --wait
-helm install simgpu oci://ghcr.io/devops-dojo7/fauxgpu/charts/fauxgpu --version 0.2.2
+helm install simgpu oci://ghcr.io/devops-dojo7/fauxgpu/charts/fauxgpu --version 0.2.3
 
 # see the simulated GPU resources show up on every node
 kubectl describe nodes | grep -A5 simgpu.dev/gpu
