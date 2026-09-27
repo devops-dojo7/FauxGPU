@@ -61,6 +61,15 @@ def lora_flops_multiplier(model: ModelShape, peft_rank: int, peft_target_modules
     """Fraction of flops_per_step's FLOPs actually needed under LoRA/QLoRA:
     1.0 minus the weight-gradient FLOPs skipped for the frozen (non-
     adapter) parameter share. See LORA_FROZEN_WEIGHT_GRAD_FLOPS_FRACTION.
+
+    Uses model.effective_active_params (not model.params) as the frozen-
+    share denominator, matching flops_per_step's own convention — for MoE
+    models this is correct precisely because LoRA only ever adapts the
+    attention projections (Wq/Wk/Wv/Wo), which are dense (not routed) in
+    essentially every MoE architecture this project models (Mixtral,
+    DeepSeek, etc.); the adapter's tiny share is being compared against
+    the same per-token active-compute base flops_per_step already uses,
+    not the full (mostly-inactive) resident parameter count.
     """
     adapter_params = lora_trainable_params(model, peft_rank, peft_target_modules)
     frozen_fraction = max(0.0, 1.0 - adapter_params / model.effective_active_params)

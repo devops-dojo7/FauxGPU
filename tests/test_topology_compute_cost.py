@@ -1,6 +1,6 @@
 import pytest
 
-from engine.compute import estimate_step_time, lora_flops_multiplier
+from engine.compute import LORA_FROZEN_WEIGHT_GRAD_FLOPS_FRACTION, estimate_step_time, lora_flops_multiplier
 from engine.cost import estimate_training_cost
 from engine.memory import ModelShape, lora_trainable_params
 from engine.topology import build_topology
@@ -120,6 +120,26 @@ def test_lora_flops_multiplier_accounts_for_the_adapters_own_small_share():
     tiny = ModelShape(params=1000, num_layers=1, hidden_dim=8, num_heads=1, head_dim=8)
     multiplier = lora_flops_multiplier(tiny, peft_rank=8, peft_target_modules=2)
     assert multiplier >= 2.0 / 3.0
+
+
+def test_lora_flops_multiplier_uses_active_params_for_moe_models():
+    # LoRA only ever adapts attention projections (Wq/Wk/Wv/Wo), which are
+    # dense (not routed) in essentially every MoE architecture this project
+    # models — so the frozen-share denominator should be
+    # effective_active_params (matching flops_per_step's own per-token
+    # compute base), not the full (mostly-inactive) resident param count.
+    # A real catalog shape (Mixtral 8x7B: 46.7B total, 12.9B active).
+    mixtral = ModelShape(
+        params=46.7e9, num_layers=32, hidden_dim=4096, num_heads=32, head_dim=128, active_params=12.9e9
+    )
+    multiplier = lora_flops_multiplier(mixtral, peft_rank=8, peft_target_modules=2)
+    adapter_params = lora_trainable_params(mixtral, rank=8, target_modules=2)
+    expected = 1.0 - LORA_FROZEN_WEIGHT_GRAD_FLOPS_FRACTION * (1.0 - adapter_params / mixtral.active_params)
+    assert multiplier == pytest.approx(expected)
+    # Sanity: using the (much larger) total param count instead would give
+    # a materially different, wrong answer -- this pins the denominator choice.
+    wrong_denominator = 1.0 - LORA_FROZEN_WEIGHT_GRAD_FLOPS_FRACTION * (1.0 - adapter_params / mixtral.params)
+    assert multiplier != pytest.approx(wrong_denominator)
 
 
 def test_lora_communication_time_matches_adapter_param_ratio():
