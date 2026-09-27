@@ -107,8 +107,10 @@ def estimate_parallel_step_time(
     completely different mechanism.
 
     peft_method/peft_rank/peft_target_modules (see engine.compute.
-    estimate_step_time) shrink the DP gradient all-reduce to the tiny LoRA
-    adapter's gradients only — also orthogonal to tp_degree/pp_degree.
+    estimate_step_time) shrink both the DP gradient all-reduce (to the
+    tiny LoRA adapter's gradients only) and the per-GPU compute (skipping
+    frozen-weight backward-gradient FLOPs) — both orthogonal to
+    tp_degree/pp_degree.
     """
     dp_step: StepTimeBreakdown = estimate_step_time(
         model,

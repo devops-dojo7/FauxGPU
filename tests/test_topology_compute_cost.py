@@ -1,6 +1,6 @@
 import pytest
 
-from engine.compute import estimate_step_time
+from engine.compute import estimate_step_time, lora_flops_multiplier
 from engine.cost import estimate_training_cost
 from engine.memory import ModelShape, lora_trainable_params
 from engine.topology import build_topology
@@ -85,9 +85,41 @@ def test_lora_shrinks_communication_time_to_adapter_gradients_only():
     baseline = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768)
     lora = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768, peft_method="lora", peft_rank=8)
     assert lora.communication_s < baseline.communication_s
-    # Compute time (forward+backward FLOPs) is unaffected by LoRA — only
-    # fewer gradients need synchronizing after the backward pass.
-    assert lora.compute_s == baseline.compute_s
+    # Compute time also shrinks — LoRA skips the backward weight-gradient
+    # FLOPs for frozen parameters (see engine.compute.lora_flops_multiplier),
+    # a real, separately-documented effect distinct from the communication
+    # saving above (not zero, and not equal to the communication ratio).
+    assert lora.compute_s < baseline.compute_s
+
+
+def test_lora_compute_time_matches_flops_multiplier_exactly():
+    topo = build_topology("nvlink_node", gpu_id="h100-sxm", gpus_per_node=8)
+    baseline = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768)
+    lora = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768, peft_method="lora", peft_rank=8, peft_target_modules=2)
+    multiplier = lora_flops_multiplier(LLAMA2_7B, peft_rank=8, peft_target_modules=2)
+    assert lora.compute_s == pytest.approx(baseline.compute_s * multiplier)
+
+
+def test_lora_flops_multiplier_approaches_two_thirds_for_large_models():
+    # In the limit where the adapter is vanishingly small next to the base
+    # model, LoRA skips almost the entire weight-gradient FLOPs term (2/6
+    # of the "6N" approximation), landing near the ~30% FLOPs reduction
+    # widely cited in the literature (e.g. Thinking Machines' "LoRA
+    # without Regret", 2025) — i.e. a multiplier approaching 4/6 = 2/3.
+    huge = ModelShape(params=175e9, num_layers=96, hidden_dim=12288, num_heads=96, head_dim=128)
+    multiplier = lora_flops_multiplier(huge, peft_rank=8, peft_target_modules=2)
+    assert multiplier == pytest.approx(2.0 / 3.0, rel=0.01)
+
+
+def test_lora_flops_multiplier_accounts_for_the_adapters_own_small_share():
+    # Unlike a limit approximation, this model computes the (small but
+    # nonzero) FLOPs the adapter itself still needs for its own weight
+    # gradient — so the multiplier is always >= 2/3, never falling below
+    # it even for a deliberately tiny model where the adapter isn't
+    # actually negligible relative to the base.
+    tiny = ModelShape(params=1000, num_layers=1, hidden_dim=8, num_heads=1, head_dim=8)
+    multiplier = lora_flops_multiplier(tiny, peft_rank=8, peft_target_modules=2)
+    assert multiplier >= 2.0 / 3.0
 
 
 def test_lora_communication_time_matches_adapter_param_ratio():
@@ -109,6 +141,9 @@ def test_qlora_communication_time_matches_lora_exactly():
     lora = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768, peft_method="lora", peft_rank=8)
     qlora = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768, peft_method="qlora", peft_rank=8)
     assert lora.communication_s == qlora.communication_s
+    # QLoRA's frozen-base quantization doesn't change which FLOPs are
+    # skipped either (same frozen/trainable split as LoRA).
+    assert lora.compute_s == qlora.compute_s
 
 
 def test_peft_and_zero_stage_are_mutually_exclusive_in_step_time():

@@ -37,13 +37,18 @@ modeling gap the simulator previously had no way to represent.
   adapters can now share one base-model copy instead of each paying the
   full checkpoint size.
 - **`engine.compute.estimate_step_time`'s new `peft_method`/`peft_rank`/
-  `peft_target_modules` parameters** shrink the DP gradient all-reduce to
-  just the tiny trainable adapter's gradients instead of the full model's
-  — a direct consequence of LoRA's own mechanism (nothing to synchronize
-  for the frozen majority), not a separately-cited paper multiplier.
-  Compute time (forward/backward FLOPs) is unaffected. Plumbed through
-  `engine.parallelism.estimate_parallel_step_time` the same way `zero_stage`
-  already was.
+  `peft_target_modules` parameters** shrink both terms of a training step:
+  the DP gradient all-reduce, to just the tiny trainable adapter's
+  gradients instead of the full model's (nothing to synchronize for the
+  frozen majority); and per-GPU compute, via `lora_flops_multiplier`,
+  which skips the backward *weight*-gradient FLOPs for frozen parameters
+  (only the *input*-gradient pass, needed to keep propagating error to
+  earlier layers, plus the adapter's own small weight-gradient, are still
+  computed) — a real, separately-documented effect (~30% fewer FLOPs per
+  step in the large-model limit, matching e.g. Thinking Machines' "LoRA
+  without Regret", 2025), independent of the communication saving.
+  Plumbed through `engine.parallelism.estimate_parallel_step_time` the
+  same way `zero_stage` already was.
 - Wired into `POST /calculate/vram` and `POST /calculate/cost`
   (`peft_method`/`peft_rank`/`peft_target_modules` request fields on both).
   Web UI: a "Fine-tuning method" selector (Full / LoRA / QLoRA) next to the
@@ -51,6 +56,31 @@ modeling gap the simulator previously had no way to represent.
   the engine), rank and adapted-matrix-count inputs, and VRAM breakdown
   panel copy explaining what each method actually does and why the numbers
   look the way they do.
+
+### Fixed
+
+- `engine.checkpointing.checkpoint_size_gb` only checked
+  `peft_method == "lora"`, silently falling through to the full
+  (weights+optimizer state) checkpoint size for `"qlora"` instead of the
+  adapter-only one it should share with LoRA — never exercised by the
+  original test suite, since no test called this function with
+  `peft_method="qlora"`.
+- The web UI's shared-link hydration replaced `modelState` wholesale
+  instead of merging over its defaults. A link encoded before
+  `peftMethod`/`peftRank`/`peftTargetModules` existed (or, retroactively,
+  before `zeroStage`/`dpSize` existed in 0.4.0) left those fields
+  `undefined` in React state, which could render the LoRA rank/adapted-
+  matrix controls bound to undefined values. Fixed by merging the decoded
+  config over the already-defaulted state.
+- `estimate_step_time`'s first LoRA/QLoRA pass (above) initially left
+  compute time unchanged and only reduced communication time, based on
+  the (incorrect) assumption that skipping optimizer-state/gradient
+  *storage* for frozen parameters also means skipping compute for them.
+  In fact the backward pass still needs the *input* gradient (dL/dx)
+  through every frozen layer to keep the error signal flowing — only the
+  *weight* gradient (dL/dW) is skippable, and only for frozen parameters.
+  Corrected before this feature's first HTTP verification round completed,
+  via `lora_flops_multiplier` (see Added, above).
 
 Verified via real HTTP calls against a running API instance: `/calculate/vram`
 for a LLaMA-65B-shaped model lands at 1040GB (full) / 131GB (LoRA) / 34GB
@@ -61,12 +91,14 @@ baseline accounts for the difference); GPT-3 175B's LoRA adapter checkpoint
 lands at 37.7MB, matching the paper's own "~35MB" almost exactly.
 `/calculate/cost` for a Llama-2 7B / 8xH100-NVLink run: LoRA drops
 communication time per step from 0.21s to 0.00013s (matching the tiny
-adapter's params/full-params ratio exactly) and the resulting full training
-run from 583 GPU-hours/$21.0K to 406 GPU-hours/$14.6K — a real, derived
-speedup, not a hardcoded number. Also confirmed the actual Next.js dev
-server + FastAPI request/response round-trip renders the new controls. 26
-new pytest tests; full suite green (287 tests, one unrelated pre-existing
-timing flake in test_runs_store.py, same one noted in 0.4.0).
+adapter's params/full-params ratio exactly) and compute time per step
+from 0.479s to 0.319s (a 0.667x multiplier, matching the ~30%-fewer-FLOPs
+figure the literature reports) — together, the resulting full training run
+drops from 583 GPU-hours/$21.0K to 271 GPU-hours/$9.7K, a real, derived
+~2.15x speedup, not a hardcoded number. Also confirmed the actual Next.js
+dev server + FastAPI request/response round-trip renders the new controls.
+30 new pytest tests; full suite green (291 tests, one unrelated
+pre-existing timing flake in test_runs_store.py, same one noted in 0.4.0).
 
 ## [0.4.0] - 2026-09-27
 

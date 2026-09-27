@@ -28,8 +28,43 @@ def flops_per_step(model: ModelShape, tokens_per_step: int) -> float:
     ~6 FLOPs per parameter per token (2x fwd, 4x bwd). For MoE models, only
     the active (routed) params do work for a given token, so this uses
     effective_active_params rather than the total resident param count.
+
+    The "4x bwd" splits evenly into 2x recomputing the backward pass's
+    *input* gradient (dL/dx, needed to keep propagating error to earlier
+    layers regardless of which weights are trainable) and 2x the *weight*
+    gradient (dL/dW, needed only for parameters that actually get updated)
+    — see lora_flops_multiplier, which zeroes out the weight-gradient half
+    for LoRA/QLoRA's frozen base weights.
     """
     return 6.0 * model.effective_active_params * tokens_per_step
+
+
+# Of the "6x" approximation above, the split is 2x forward + 2x backward
+# input-gradient (dL/dx) + 2x backward weight-gradient (dL/dW) — see e.g.
+# https://erenovic.github.io/posts/2025-10-07-recap-on-lora-without-regret/
+# summarizing Thinking Machines' "LoRA without Regret" (2025): "LoRA saves
+# compute because we only calculate gradients for the tiny A and B
+# matrices... roughly a 30% reduction in FLOPs per training step". LoRA/
+# QLoRA must still backprop the *input* gradient through the frozen base
+# (2x) to keep the error signal flowing to earlier layers, and still needs
+# the full 2x forward pass — only the 2x weight-gradient term shrinks, and
+# only for the frozen majority (the tiny adapter itself still needs its
+# own, negligible, weight-gradient compute). In the N -> infinity limit
+# (adapter params vanishingly small next to the frozen base), this is
+# 4/6 = 1/3 fewer FLOPs, matching the cited "~30%" almost exactly; this
+# model computes the adapter's own small share exactly rather than
+# assuming it away.
+LORA_FROZEN_WEIGHT_GRAD_FLOPS_FRACTION = 2.0 / 6.0
+
+
+def lora_flops_multiplier(model: ModelShape, peft_rank: int, peft_target_modules: int) -> float:
+    """Fraction of flops_per_step's FLOPs actually needed under LoRA/QLoRA:
+    1.0 minus the weight-gradient FLOPs skipped for the frozen (non-
+    adapter) parameter share. See LORA_FROZEN_WEIGHT_GRAD_FLOPS_FRACTION.
+    """
+    adapter_params = lora_trainable_params(model, peft_rank, peft_target_modules)
+    frozen_fraction = max(0.0, 1.0 - adapter_params / model.effective_active_params)
+    return 1.0 - LORA_FROZEN_WEIGHT_GRAD_FLOPS_FRACTION * frozen_fraction
 
 
 def achievable_tflops(peak_tflops: float, utilization: float = 0.35) -> float:
@@ -91,20 +126,28 @@ def estimate_step_time(
     zero_communication_multiplier.
 
     peft_method="lora"/"qlora" (see engine.memory.compute_vram_breakdown for
-    the memory side) shrinks the gradient all-reduce payload to just the
-    tiny trainable adapter's gradients instead of the full model's — with
-    the vast majority of parameters frozen, there's nothing to synchronize
-    for them. This is a direct consequence of LoRA's own mechanism (Hu et
-    al. 2021), not a separately-cited paper number: the paper's own
-    measured "25%" throughput speedup for GPT-3 175B (Sec 4.2, footnote —
-    32.5 -> 43.1 tokens/s/GPU) folds in other differences (a different
-    model-parallel sharding count between the two runs) beyond just this
-    communication saving, so this model only reduces the communication
-    term it can derive directly rather than reproducing that headline
-    number as a black-box multiplier. Compute time is unaffected — the
-    forward/backward FLOPs cost is unchanged; only fewer gradients need
-    synchronizing after the backward pass. peft_method is mutually
-    exclusive with zero_stage != 0, matching engine.memory.
+    the memory side) affects both terms of this function, each for a
+    distinct, independently-derivable reason:
+
+    - Communication: the gradient all-reduce payload shrinks to just the
+      tiny trainable adapter's gradients instead of the full model's —
+      with the vast majority of parameters frozen, there's nothing to
+      synchronize for them.
+    - Compute: see lora_flops_multiplier — backpropagating the *weight*
+      gradient (dL/dW) is skipped for frozen parameters (only the input
+      gradient dL/dx, needed to keep propagating error to earlier layers,
+      plus the tiny adapter's own weight gradient, are computed), which is
+      a real, separately-documented ~30% FLOPs reduction (see
+      lora_flops_multiplier's docstring for the citation) — distinct from,
+      and in addition to, the communication saving above.
+
+    Neither of the above reproduces the LoRA paper's own measured "25%"
+    throughput speedup for GPT-3 175B (Sec 4.2, footnote — 32.5 -> 43.1
+    tokens/s/GPU) as a black-box multiplier, since that number folds in
+    other differences (a different model-parallel sharding count between
+    the compared runs) beyond just compute+communication savings — this
+    model only applies the two effects it can derive directly. peft_method
+    is mutually exclusive with zero_stage != 0, matching engine.memory.
     """
     if peft_method != "full" and zero_stage != 0:
         raise ValueError(
@@ -114,6 +157,8 @@ def estimate_step_time(
 
     tokens_per_gpu = max(1, tokens_per_step // topology.total_gpus)
     step_flops = flops_per_step(model, tokens_per_gpu)
+    if peft_method in ("lora", "qlora"):
+        step_flops *= lora_flops_multiplier(model, peft_rank, peft_target_modules)
     tflops = achievable_tflops(topology.gpu.bf16_tflops, utilization)
     compute_s = step_flops / (tflops * 1e12)
 

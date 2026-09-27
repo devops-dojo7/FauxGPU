@@ -154,7 +154,7 @@ def test_vram_endpoint_rejects_peft_combined_with_zero_stage():
     assert exc_info.value.status_code == 400
 
 
-def test_cost_endpoint_lora_shrinks_communication_time():
+def test_cost_endpoint_lora_shrinks_communication_and_compute_time():
     multi_gpu = _cost_request(topology=TopologyRequest(shape="nvlink_node", gpu_id="h100-sxm", gpus_per_node=8))
     baseline = calculate_cost(multi_gpu)
     lora = calculate_cost(
@@ -167,7 +167,10 @@ def test_cost_endpoint_lora_shrinks_communication_time():
     )
     assert baseline.communication_s_per_step > 0  # sanity: multi-GPU topology actually communicates
     assert lora.communication_s_per_step < baseline.communication_s_per_step
-    assert lora.compute_s_per_step == baseline.compute_s_per_step
+    # LoRA skips the backward weight-gradient FLOPs for frozen parameters
+    # (see engine.compute.lora_flops_multiplier) — compute time shrinks
+    # too, not just communication.
+    assert lora.compute_s_per_step < baseline.compute_s_per_step
 
 
 def test_cost_endpoint_rejects_peft_combined_with_zero_stage():
