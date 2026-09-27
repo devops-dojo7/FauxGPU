@@ -17,8 +17,8 @@ spec:
     spec:
       containers:
         - name: web
-          image: {{ .Values.web.image }}
-          imagePullPolicy: {{ .Values.web.imagePullPolicy }}
+          image: {{ include "simgpu.image" (dict "root" $ "component" .Values.web.image) }}
+          imagePullPolicy: {{ include "simgpu.imagePullPolicy" (dict "root" $ "component" .Values.web.image) }}
           env:
             - name: HOSTNAME
               value: "0.0.0.0"

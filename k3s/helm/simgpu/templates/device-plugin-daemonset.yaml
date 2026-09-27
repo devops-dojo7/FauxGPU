@@ -19,8 +19,8 @@ spec:
         - operator: Exists
       containers:
         - name: device-plugin
-          image: {{ .Values.devicePlugin.image }}
-          imagePullPolicy: {{ .Values.devicePlugin.imagePullPolicy }}
+          image: {{ include "simgpu.image" (dict "root" $ "component" .Values.devicePlugin.image) }}
+          imagePullPolicy: {{ include "simgpu.imagePullPolicy" (dict "root" $ "component" .Values.devicePlugin.image) }}
           env:
             - name: SIMGPU_RESOURCE_NAME
               value: {{ .Values.devicePlugin.resourceName | quote }}

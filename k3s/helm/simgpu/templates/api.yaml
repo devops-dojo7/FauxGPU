@@ -17,13 +17,13 @@ spec:
       serviceAccountName: simgpu-api
       containers:
         - name: api
-          image: {{ .Values.api.image }}
-          imagePullPolicy: {{ .Values.api.imagePullPolicy }}
+          image: {{ include "simgpu.image" (dict "root" $ "component" .Values.api.image) }}
+          imagePullPolicy: {{ include "simgpu.imagePullPolicy" (dict "root" $ "component" .Values.api.image) }}
           env:
             - name: TRAINER_IMAGE
-              value: {{ .Values.trainer.image }}
+              value: {{ include "simgpu.image" (dict "root" $ "component" .Values.trainer.image) | quote }}
             - name: INFERENCE_SERVER_IMAGE
-              value: {{ .Values.inferenceServer.image }}
+              value: {{ include "simgpu.image" (dict "root" $ "component" .Values.inferenceServer.image) | quote }}
             - name: SIMGPU_RESOURCE_NAME
               value: {{ include "simgpu.gpuResourceName" . | trim | quote }}
             - name: API_PORT

@@ -1,13 +1,52 @@
+# =============================================================================
+# simgpu — single values.yaml for the whole fake-GPU K8s layer
+# =============================================================================
+# This file is the *only* thing most users need to edit. A plain
+#   helm install simgpu oci://ghcr.io/devops-dojo7/fauxgpu/charts/simgpu
+# pulls every component image straight from GHCR (see `image:` below) — no
+# `docker build` / `k3d image import` step required. Override whatever you
+# need with `-f my-values.yaml` or `--set key=value`; every knob in this repo
+# lives under one of the top-level keys below, grouped by concern.
+#
+# Building from source instead? k3s/helm/simgpu/values-dev.yaml is a
+# ready-made `-f` override pointing every component at local `docker build`
+# tags (e.g. `simgpu/api:dev`) instead of the published GHCR images below.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# image: shared defaults every component's own image below inherits. Bump
+# `tag` here to move the whole stack to a new release in one edit; only
+# override an individual component's `image.<name>.repository`/`tag` if you
+# need to point one piece somewhere else (e.g. a custom-built api image while
+# everything else stays on the published release).
+# -----------------------------------------------------------------------------
+image:
+  # GHCR namespace every component's repository is resolved under, unless a
+  # component sets its own `repository` starting with a registry host (a
+  # value containing "/" before the first "." — e.g. "simgpu/api:dev" for
+  # local dev builds — is used as-is instead of being prefixed).
+  registry: ghcr.io/devops-dojo7/fauxgpu
+  # Shared tag for every component unless overridden per-component below.
+  # Matches this chart's own Chart.yaml appVersion — the release pipeline
+  # (.github/workflows/release.yml) keeps them in lockstep.
+  tag: "0.2.2"
+  pullPolicy: IfNotPresent
+
+# =============================================================================
+# GPU backend selection
+# =============================================================================
 # Which fake-GPU backend the cluster runs. "simgpu" is the lightweight
-# built-in device-plugin below (default, matches the k3d quickstart).
+# built-in device-plugin below (default, matches the quick-start install).
 # "fake-gpu-operator" targets github.com/run-ai/fake-gpu-operator, installed
 # separately as a prerequisite (see README "Datacenter mode"); it must
 # already be running in-cluster before you set this.
 gpuBackend: simgpu
 
 devicePlugin:
-  image: simgpu/device-plugin:dev
-  imagePullPolicy: IfNotPresent
+  image:
+    repository: device-plugin
+    # tag: ""       # falls back to image.tag above when unset
+    # pullPolicy: "" # falls back to image.pullPolicy above when unset
   resourceName: simgpu.dev/gpu
   gpuModel: h100-sxm
   gpuCount: 8
@@ -88,23 +127,26 @@ fleet:
   # already-configured GPU model instead.
   nodePool: ""
 
+# =============================================================================
+# Core services
+# =============================================================================
 api:
-  image: simgpu/api:dev
-  imagePullPolicy: IfNotPresent
+  image:
+    repository: api
   replicas: 1
   port: 8000
 
 web:
   enabled: true
-  image: simgpu/web:dev
-  imagePullPolicy: IfNotPresent
+  image:
+    repository: web
   replicas: 1
   port: 3000
 
 trainer:
   enabled: true
-  image: simgpu/trainer:dev
-  imagePullPolicy: IfNotPresent
+  image:
+    repository: trainer
   modelPreset: llama2-7b
   gpuModel: h100-sxm
   topologyShape: nvlink_node
@@ -121,7 +163,15 @@ trainer:
 # on demand via POST /inference/launch-k8s-server rather than deployed
 # standing up-front like trainer/web above.
 inferenceServer:
-  image: simgpu/inference-server:dev
+  image:
+    repository: inference-server
+
+# =============================================================================
+# Optional integrations — every block below is opt-in (enabled: false by
+# default) and a no-op until you flip it on. Secrets (grafana.*, langfuse.*)
+# should never be committed here — pass them at deploy time via
+# `--set-string` or a separate, gitignored `-f secrets.yaml`.
+# =============================================================================
 
 # Optional Grafana Cloud integration — disabled by default. All values here
 # are secrets; leave this file's defaults empty and pass real values at

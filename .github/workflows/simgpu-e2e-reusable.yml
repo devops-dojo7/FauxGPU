@@ -79,11 +79,11 @@ jobs:
         run: |
           helm install simgpu k3s/helm/simgpu \
             --set gpuBackend=${{ inputs.gpu-backend }} \
-            --set devicePlugin.image=simgpu/device-plugin:ci \
-            --set api.image=simgpu/api:ci \
-            --set trainer.image=simgpu/trainer:ci \
-            --set inferenceServer.image=simgpu/inference-server:ci \
-            --set web.image=simgpu/web:ci \
+            --set devicePlugin.image.repository=simgpu/device-plugin --set devicePlugin.image.tag=ci \
+            --set api.image.repository=simgpu/api --set api.image.tag=ci \
+            --set trainer.image.repository=simgpu/trainer --set trainer.image.tag=ci \
+            --set inferenceServer.image.repository=simgpu/inference-server --set inferenceServer.image.tag=ci \
+            --set web.image.repository=simgpu/web --set web.image.tag=ci \
             --set trainer.enabled=false \
             --wait --timeout 180s
 

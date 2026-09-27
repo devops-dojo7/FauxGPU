@@ -120,22 +120,18 @@ API docs: http://localhost:8000/docs · Website: http://localhost:3000
 
 ### Deploy the fake-GPU K8s layer
 
-Verified against a local [k3d](https://k3d.io) cluster:
+Verified against a local [k3d](https://k3d.io) cluster. Every tagged release
+publishes multi-arch (`linux/amd64` + `linux/arm64`) images and the Helm
+chart itself to GHCR via
+[`.github/workflows/release.yml`](.github/workflows/release.yml), and
+`k3s/helm/simgpu/values.yaml`'s committed defaults already point at those
+published images — so this is the whole install, no `docker build` / `k3d
+image import` step required, on either an Intel/AMD or an Apple
+Silicon/ARM node:
 
 ```bash
-# build the images
-docker build -t simgpu/device-plugin:dev -f k3s/device-plugin/Dockerfile k3s/device-plugin
-docker build -t simgpu/api:dev -f api/Dockerfile .
-docker build -t simgpu/trainer:dev -f k3s/trainer/Dockerfile .
-docker build -t simgpu/inference-server:dev -f k3s/inference-server/Dockerfile .
-docker build -t simgpu/web:dev web
-
-# spin up a cluster and load the images
 k3d cluster create simgpu --agents 2 --wait
-k3d image import simgpu/device-plugin:dev simgpu/api:dev simgpu/trainer:dev simgpu/inference-server:dev simgpu/web:dev -c simgpu
-
-# deploy
-helm install simgpu k3s/helm/simgpu
+helm install simgpu oci://ghcr.io/devops-dojo7/fauxgpu/charts/simgpu --version 0.2.2
 
 # see the simulated GPU resources show up on every node
 kubectl describe nodes | grep -A5 simgpu.dev/gpu
@@ -148,29 +144,51 @@ kubectl port-forward svc/simgpu-api 8000:8000
 kubectl port-forward svc/simgpu-web 3000:3000
 ```
 
-Change `values.yaml` (`trainer.topologyShape`, `trainer.gpuModel`,
-`trainer.fabricId`, `devicePlugin.gpuCount`, etc.) and `helm upgrade` to see
-step time and communication overhead change with the simulated topology.
-Tear down with `k3d cluster delete simgpu`.
-
-### Install without building (published images)
-
-Every tagged release publishes multi-arch (`linux/amd64` + `linux/arm64`)
-images and the Helm chart itself to GHCR via
-[`.github/workflows/release.yml`](.github/workflows/release.yml), so you can
-skip the `docker build` / `k3d image import` steps above entirely — on
-either an Intel/AMD or an Apple Silicon/ARM node:
+**`values.yaml` is the single file that configures the whole deployment** —
+every knob for every component (image tags, GPU model/count, trainer model
+preset and topology, the optional Grafana/Langfuse/observability
+integrations, the datacenter-mode fleet, all of it) lives there, grouped by
+concern and commented in place. Copy it, edit what you need, and pass it
+back with `-f`:
 
 ```bash
-k3d cluster create simgpu --agents 2 --wait
-helm install simgpu oci://ghcr.io/devops-dojo7/fauxgpu/charts/simgpu --version 0.1.0
+helm upgrade simgpu k3s/helm/simgpu -f my-values.yaml
 ```
+
+or override individual keys inline with `--set` (e.g.
+`trainer.topologyShape`, `trainer.gpuModel`, `trainer.fabricId`,
+`devicePlugin.gpuCount`) and `helm upgrade` to see step time and
+communication overhead change with the simulated topology. Tear down with
+`k3d cluster delete simgpu`.
 
 To cut a new release yourself: push a `vX.Y.Z` tag (or run the workflow
 manually with a version input) and the workflow builds, pushes, and
 publishes everything for that version. Note the first publish under a new
 image/chart name lands as a **private** GHCR package — flip it to public
 once in that package's GHCR settings, or it won't pull anonymously.
+
+### Build the images yourself
+
+Prefer building from source instead of pulling from GHCR (developing this
+repo, air-gapped environment, don't trust a third-party registry, etc.)?
+`k3s/helm/simgpu/values-dev.yaml` is a ready-made override pointing every
+component back at local `docker build` tags:
+
+```bash
+docker build -t simgpu/device-plugin:dev -f k3s/device-plugin/Dockerfile k3s/device-plugin
+docker build -t simgpu/api:dev -f api/Dockerfile .
+docker build -t simgpu/trainer:dev -f k3s/trainer/Dockerfile .
+docker build -t simgpu/inference-server:dev -f k3s/inference-server/Dockerfile .
+docker build -t simgpu/web:dev web
+
+k3d cluster create simgpu --agents 2 --wait
+k3d image import simgpu/device-plugin:dev simgpu/api:dev simgpu/trainer:dev simgpu/inference-server:dev simgpu/web:dev -c simgpu
+
+helm install simgpu k3s/helm/simgpu -f k3s/helm/simgpu/values-dev.yaml
+```
+
+Everything else (checking GPU resources, the trainer Job, port-forwarding)
+is identical to the published-image path above.
 
 ### GPU Operator Playground
 

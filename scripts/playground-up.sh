@@ -121,7 +121,10 @@ helm upgrade -i fake-gpu-operator oci://ghcr.io/run-ai/fake-gpu-operator/fake-gp
 
 echo "== deploying the simgpu chart against fake-gpu-operator =="
 kubectl delete job simgpu-trainer --ignore-not-found
-helm upgrade -i simgpu k3s/helm/simgpu --set gpuBackend=fake-gpu-operator -f "$fleet_values"
+helm upgrade -i simgpu k3s/helm/simgpu \
+  -f k3s/helm/simgpu/values-dev.yaml \
+  --set gpuBackend=fake-gpu-operator \
+  -f "$fleet_values"
 
 echo "== waiting for simgpu-api and simgpu-web to be ready =="
 kubectl rollout status deployment/simgpu-api --timeout=180s

@@ -1,0 +1,39 @@
+# Local build/dev override: points every component at the locally
+# `docker build`-tagged images (see README "Build the images yourself")
+# instead of values.yaml's published GHCR defaults. Each `repository` here
+# already contains a "/", so templates/_helpers.tpl's `simgpu.image` helper
+# uses it as-is rather than prefixing `image.registry` — no `image.registry`
+# override needed.
+#
+# Usage, after building + `k3d image import`-ing the five images:
+#   helm install simgpu k3s/helm/simgpu -f k3s/helm/simgpu/values-dev.yaml
+#
+# scripts/playground-up.sh and .github/workflows/simgpu-e2e-reusable.yml
+# achieve the same thing directly via --set (they use a "ci" tag, not "dev",
+# to avoid colliding with images you may have built locally for this file),
+# rather than referencing this file, so tag values here are illustrative —
+# match whatever tag you actually built with.
+devicePlugin:
+  image:
+    repository: simgpu/device-plugin
+    tag: dev
+
+api:
+  image:
+    repository: simgpu/api
+    tag: dev
+
+web:
+  image:
+    repository: simgpu/web
+    tag: dev
+
+trainer:
+  image:
+    repository: simgpu/trainer
+    tag: dev
+
+inferenceServer:
+  image:
+    repository: simgpu/inference-server
+    tag: dev

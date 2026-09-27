@@ -15,8 +15,8 @@ spec:
       restartPolicy: Never
       containers:
         - name: trainer
-          image: {{ .Values.trainer.image }}
-          imagePullPolicy: {{ .Values.trainer.imagePullPolicy }}
+          image: {{ include "simgpu.image" (dict "root" $ "component" .Values.trainer.image) }}
+          imagePullPolicy: {{ include "simgpu.imagePullPolicy" (dict "root" $ "component" .Values.trainer.image) }}
           env:
             - name: MODEL_PRESET
               value: {{ .Values.trainer.modelPreset | quote }}

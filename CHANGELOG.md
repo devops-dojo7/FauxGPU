@@ -5,6 +5,45 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-09-27
+
+Makes the Helm chart installable with zero local builds, and its
+`values.yaml` the single file that configures the whole deployed app.
+
+### Changed
+
+- **`helm install` now needs no `docker build`/`k3d image import` step by
+  default** — `k3s/helm/simgpu/values.yaml`'s committed defaults point every
+  component (device-plugin, api, trainer, inference-server, web) at this
+  project's own published GHCR images (`ghcr.io/devops-dojo7/fauxgpu/*`,
+  matching the current release tag) instead of local `simgpu/*:dev` tags a
+  user previously had to build themselves.
+- **One shared `image.registry`/`image.tag` block** (new in `values.yaml`)
+  every component's own `<component>.image.repository`/`tag`/`pullPolicy`
+  falls back to when unset — bump one version in one place to move the
+  whole stack, or override a single component to point it somewhere else
+  (a custom-built image, a different registry) without touching the rest.
+  Building from source instead: `k3s/helm/simgpu/values-dev.yaml` is a
+  ready-made `-f` override pointing every component back at local
+  `simgpu/*:dev` build tags.
+- README's "Deploy the fake-GPU K8s layer" now leads with the published-image
+  install (no build step); the from-source `docker build`/`k3d image import`
+  walkthrough moved to its own "Build the images yourself" subsection.
+
+### Fixed
+
+- `.github/workflows/release.yml`'s post-checkout values rewrite now edits
+  the two `image.registry`/`image.tag` lines directly instead of five
+  brittle per-component string substitutions that silently no-op'd if a
+  default tag ever changed shape.
+
+## [0.2.1] - 2026-09-17
+
+- Publishes every component image (multi-arch, linux/amd64 + linux/arm64)
+  and the Helm chart itself to GHCR on tag push
+  (`.github/workflows/release.yml`), so a fresh cluster can install via
+  `helm install simgpu oci://ghcr.io/devops-dojo7/fauxgpu/charts/simgpu`.
+
 ## [0.2.0] - 2026-08-25
 
 Ten new simulation features, closing out the full feature roadmap, plus two
