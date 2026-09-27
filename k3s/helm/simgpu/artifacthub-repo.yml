@@ -16,7 +16,7 @@
 # this repository's card in the Artifact Hub control panel after it's been
 # added, then commit it here so the next release republishes this file with
 # it filled in.
-# repositoryID: ""
+repositoryID: c97b7399-0b1c-48ec-ad88-908d4756ccc0
 owners:
   - name: kumailr7
     email: kumailrizvi70@gmail.com
