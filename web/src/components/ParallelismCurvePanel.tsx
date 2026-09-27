@@ -53,6 +53,9 @@ export function ParallelismCurvePanel({
           num_microbatches: numMicrobatches,
           zero_stage: 0,
           carbon_region: "global-avg",
+          peft_method: "full",
+          peft_rank: 8,
+          peft_target_modules: 2,
         })
           .then((r) => ({ tp, r, ok: true as const }))
           .catch(() => ({ tp, r: null, ok: false as const })),

@@ -93,6 +93,9 @@ def estimate_parallel_step_time(
     seq_len: int = 2048,
     num_microbatches: int = 1,
     zero_stage: int = 0,
+    peft_method: str = "full",
+    peft_rank: int = 8,
+    peft_target_modules: int = 2,
 ) -> ParallelStepTimeBreakdown:
     """DP step time (existing formula) with per-GPU compute divided by
     tp_degree, plus TP's per-layer activation all-reduce and PP's pipeline
@@ -102,9 +105,21 @@ def estimate_parallel_step_time(
     engine.compute.estimate_step_time / engine.memory.compute_vram_breakdown)
     — orthogonal to tp_degree/pp_degree, which shard the model itself via a
     completely different mechanism.
+
+    peft_method/peft_rank/peft_target_modules (see engine.compute.
+    estimate_step_time) shrink the DP gradient all-reduce to the tiny LoRA
+    adapter's gradients only — also orthogonal to tp_degree/pp_degree.
     """
     dp_step: StepTimeBreakdown = estimate_step_time(
-        model, topology, tokens_per_step, precision, utilization, zero_stage=zero_stage
+        model,
+        topology,
+        tokens_per_step,
+        precision,
+        utilization,
+        zero_stage=zero_stage,
+        peft_method=peft_method,
+        peft_rank=peft_rank,
+        peft_target_modules=peft_target_modules,
     )
 
     compute_s = dp_step.compute_s / max(tp_degree, 1)

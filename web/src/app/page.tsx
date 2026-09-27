@@ -205,6 +205,9 @@ export default function Home() {
       num_microbatches: costInputs.numMicrobatches,
       zero_stage: modelState.zeroStage,
       carbon_region: costInputs.carbonRegion,
+      peft_method: modelState.peftMethod,
+      peft_rank: modelState.peftRank,
+      peft_target_modules: modelState.peftTargetModules,
     })
       .then(setCost)
       .catch((e) => setCostError(e.message))

@@ -36,12 +36,21 @@ modeling gap the simulator previously had no way to represent.
   ~10,000x reduction from the 350GB full checkpoint — many task-specific
   adapters can now share one base-model copy instead of each paying the
   full checkpoint size.
-- Wired into `POST /calculate/vram` (`peft_method`/`peft_rank`/
-  `peft_target_modules` request fields). Web UI: a "Fine-tuning method"
-  selector (Full / LoRA / QLoRA) next to the existing ZeRO/FSDP controls
-  (mutually exclusive with each other, matching the engine), rank and
-  adapted-matrix-count inputs, and VRAM breakdown panel copy explaining
-  what each method actually does and why the numbers look the way they do.
+- **`engine.compute.estimate_step_time`'s new `peft_method`/`peft_rank`/
+  `peft_target_modules` parameters** shrink the DP gradient all-reduce to
+  just the tiny trainable adapter's gradients instead of the full model's
+  — a direct consequence of LoRA's own mechanism (nothing to synchronize
+  for the frozen majority), not a separately-cited paper multiplier.
+  Compute time (forward/backward FLOPs) is unaffected. Plumbed through
+  `engine.parallelism.estimate_parallel_step_time` the same way `zero_stage`
+  already was.
+- Wired into `POST /calculate/vram` and `POST /calculate/cost`
+  (`peft_method`/`peft_rank`/`peft_target_modules` request fields on both).
+  Web UI: a "Fine-tuning method" selector (Full / LoRA / QLoRA) next to the
+  existing ZeRO/FSDP controls (mutually exclusive with each other, matching
+  the engine), rank and adapted-matrix-count inputs, and VRAM breakdown
+  panel copy explaining what each method actually does and why the numbers
+  look the way they do.
 
 Verified via real HTTP calls against a running API instance: `/calculate/vram`
 for a LLaMA-65B-shaped model lands at 1040GB (full) / 131GB (LoRA) / 34GB
@@ -49,11 +58,15 @@ for a LLaMA-65B-shaped model lands at 1040GB (full) / 131GB (LoRA) / 34GB
 with room to spare, and full fine-tuning's >1TB confirms the paper's own
 ">780GB" figure (this simulator's default bf16 vs. the paper's fp16
 baseline accounts for the difference); GPT-3 175B's LoRA adapter checkpoint
-lands at 37.7MB, matching the paper's own "~35MB" almost exactly. Also
-confirmed the actual Next.js dev server + FastAPI request/response
-round-trip renders the new controls. 20 new pytest tests; full suite green
-(281 tests, one unrelated pre-existing timing flake in
-test_runs_store.py, same one noted in 0.4.0).
+lands at 37.7MB, matching the paper's own "~35MB" almost exactly.
+`/calculate/cost` for a Llama-2 7B / 8xH100-NVLink run: LoRA drops
+communication time per step from 0.21s to 0.00013s (matching the tiny
+adapter's params/full-params ratio exactly) and the resulting full training
+run from 583 GPU-hours/$21.0K to 406 GPU-hours/$14.6K — a real, derived
+speedup, not a hardcoded number. Also confirmed the actual Next.js dev
+server + FastAPI request/response round-trip renders the new controls. 26
+new pytest tests; full suite green (287 tests, one unrelated pre-existing
+timing flake in test_runs_store.py, same one noted in 0.4.0).
 
 ## [0.4.0] - 2026-09-27
 

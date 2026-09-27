@@ -96,6 +96,18 @@ class CostRequest(BaseModel):
     carbon_region: str = Field(
         "global-avg", description="Grid carbon-intensity region — see engine.carbon.GRID_CARBON_INTENSITY_G_PER_KWH"
     )
+    peft_method: str = Field(
+        "full",
+        description=(
+            "Parameter-efficient fine-tuning strategy: full | lora | qlora. Shrinks the DP "
+            "gradient all-reduce to the tiny trainable adapter only. Mutually exclusive with "
+            "zero_stage != 0 — see engine.compute.estimate_step_time."
+        ),
+    )
+    peft_rank: int = Field(8, ge=1, description="LoRA/QLoRA rank r — only used when peft_method is lora/qlora")
+    peft_target_modules: int = Field(
+        2, ge=1, le=4, description="Number of attention projection matrices (of Wq/Wk/Wv/Wo) adapted, 1-4"
+    )
 
 
 class CostResponse(BaseModel):

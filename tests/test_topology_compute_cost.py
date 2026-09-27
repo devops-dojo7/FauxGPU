@@ -2,7 +2,7 @@ import pytest
 
 from engine.compute import estimate_step_time
 from engine.cost import estimate_training_cost
-from engine.memory import ModelShape
+from engine.memory import ModelShape, lora_trainable_params
 from engine.topology import build_topology
 
 LLAMA2_7B = ModelShape(
@@ -75,3 +75,43 @@ def test_zero_communication_multiplier_rejects_invalid_stage():
 
     with pytest.raises(ValueError, match="zero_stage"):
         zero_communication_multiplier(5)
+
+
+# --- LoRA / QLoRA step-time (gradient all-reduce shrinks to the adapter) ---
+
+
+def test_lora_shrinks_communication_time_to_adapter_gradients_only():
+    topo = build_topology("nvlink_node", gpu_id="h100-sxm", gpus_per_node=8)
+    baseline = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768)
+    lora = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768, peft_method="lora", peft_rank=8)
+    assert lora.communication_s < baseline.communication_s
+    # Compute time (forward+backward FLOPs) is unaffected by LoRA — only
+    # fewer gradients need synchronizing after the backward pass.
+    assert lora.compute_s == baseline.compute_s
+
+
+def test_lora_communication_time_matches_adapter_param_ratio():
+    topo = build_topology("nvlink_node", gpu_id="h100-sxm", gpus_per_node=8)
+    baseline = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768, precision="bf16")
+    lora = estimate_step_time(
+        LLAMA2_7B, topo, tokens_per_step=32768, precision="bf16", peft_method="lora", peft_rank=8, peft_target_modules=2
+    )
+    adapter_params = lora_trainable_params(LLAMA2_7B, rank=8, target_modules=2)
+    expected_ratio = adapter_params / LLAMA2_7B.params
+    assert lora.communication_s == pytest.approx(baseline.communication_s * expected_ratio)
+
+
+def test_qlora_communication_time_matches_lora_exactly():
+    # QLoRA's communication savings come from the same tiny trainable
+    # adapter as LoRA (only the base weights' storage format differs,
+    # which doesn't affect gradient communication volume).
+    topo = build_topology("nvlink_node", gpu_id="h100-sxm", gpus_per_node=8)
+    lora = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768, peft_method="lora", peft_rank=8)
+    qlora = estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768, peft_method="qlora", peft_rank=8)
+    assert lora.communication_s == qlora.communication_s
+
+
+def test_peft_and_zero_stage_are_mutually_exclusive_in_step_time():
+    topo = build_topology("nvlink_node", gpu_id="h100-sxm", gpus_per_node=8)
+    with pytest.raises(ValueError, match="zero_stage"):
+        estimate_step_time(LLAMA2_7B, topo, tokens_per_step=32768, peft_method="lora", zero_stage=1)

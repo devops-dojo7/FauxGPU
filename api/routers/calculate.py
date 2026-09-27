@@ -85,6 +85,9 @@ def calculate_cost(req: CostRequest):
             seq_len=req.seq_len,
             num_microbatches=req.num_microbatches,
             zero_stage=req.zero_stage,
+            peft_method=req.peft_method,
+            peft_rank=req.peft_rank,
+            peft_target_modules=req.peft_target_modules,
         )
         if step.total_s == float("inf"):
             raise ValueError(

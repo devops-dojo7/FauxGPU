@@ -240,6 +240,9 @@ export function ComparePanel({
               num_microbatches: costInputs.numMicrobatches,
               zero_stage: 0,
               carbon_region: costInputs.carbonRegion,
+              peft_method: "full",
+              peft_rank: 8,
+              peft_target_modules: 2,
             })
           : Promise.resolve(null),
         calculateInference({

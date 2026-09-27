@@ -107,6 +107,9 @@ export interface CostRequest {
   num_microbatches: number;
   zero_stage: number;
   carbon_region: string;
+  peft_method: string;
+  peft_rank: number;
+  peft_target_modules: number;
 }
 
 export interface CostResponse {

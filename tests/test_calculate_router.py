@@ -152,3 +152,25 @@ def test_vram_endpoint_rejects_peft_combined_with_zero_stage():
     with pytest.raises(HTTPException) as exc_info:
         calculate_vram(_vram_request(peft_method="lora", zero_stage=1, dp_size=8))
     assert exc_info.value.status_code == 400
+
+
+def test_cost_endpoint_lora_shrinks_communication_time():
+    multi_gpu = _cost_request(topology=TopologyRequest(shape="nvlink_node", gpu_id="h100-sxm", gpus_per_node=8))
+    baseline = calculate_cost(multi_gpu)
+    lora = calculate_cost(
+        _cost_request(
+            topology=TopologyRequest(shape="nvlink_node", gpu_id="h100-sxm", gpus_per_node=8),
+            peft_method="lora",
+            peft_rank=8,
+            peft_target_modules=2,
+        )
+    )
+    assert baseline.communication_s_per_step > 0  # sanity: multi-GPU topology actually communicates
+    assert lora.communication_s_per_step < baseline.communication_s_per_step
+    assert lora.compute_s_per_step == baseline.compute_s_per_step
+
+
+def test_cost_endpoint_rejects_peft_combined_with_zero_stage():
+    with pytest.raises(HTTPException) as exc_info:
+        calculate_cost(_cost_request(peft_method="lora", zero_stage=1))
+    assert exc_info.value.status_code == 400

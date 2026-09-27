@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from engine.memory import ModelShape, bytes_per_param
+from engine.memory import ModelShape, bytes_per_param, lora_trainable_params
 from engine.topology import ClusterTopology
 
 GBPS_TO_BYTES_PER_SEC = 1e9 / 8  # Gb/s -> bytes/s
@@ -76,6 +76,9 @@ def estimate_step_time(
     precision: str = "bf16",
     utilization: float = 0.35,
     zero_stage: int = 0,
+    peft_method: str = "full",
+    peft_rank: int = 8,
+    peft_target_modules: int = 2,
 ) -> StepTimeBreakdown:
     """Total wall-clock time for one data-parallel training step across the
     given topology. Compute happens in parallel per-GPU (tokens_per_step is
@@ -86,13 +89,38 @@ def estimate_step_time(
     zero_stage (see engine.memory.compute_vram_breakdown for the memory
     side of this) scales up communication time only at stage 3 — see
     zero_communication_multiplier.
+
+    peft_method="lora"/"qlora" (see engine.memory.compute_vram_breakdown for
+    the memory side) shrinks the gradient all-reduce payload to just the
+    tiny trainable adapter's gradients instead of the full model's — with
+    the vast majority of parameters frozen, there's nothing to synchronize
+    for them. This is a direct consequence of LoRA's own mechanism (Hu et
+    al. 2021), not a separately-cited paper number: the paper's own
+    measured "25%" throughput speedup for GPT-3 175B (Sec 4.2, footnote —
+    32.5 -> 43.1 tokens/s/GPU) folds in other differences (a different
+    model-parallel sharding count between the two runs) beyond just this
+    communication saving, so this model only reduces the communication
+    term it can derive directly rather than reproducing that headline
+    number as a black-box multiplier. Compute time is unaffected — the
+    forward/backward FLOPs cost is unchanged; only fewer gradients need
+    synchronizing after the backward pass. peft_method is mutually
+    exclusive with zero_stage != 0, matching engine.memory.
     """
+    if peft_method != "full" and zero_stage != 0:
+        raise ValueError(
+            f"zero_stage={zero_stage} combined with peft_method={peft_method!r} is not modeled "
+            "(mutually exclusive here) — see engine.memory.compute_vram_breakdown's docstring."
+        )
+
     tokens_per_gpu = max(1, tokens_per_step // topology.total_gpus)
     step_flops = flops_per_step(model, tokens_per_gpu)
     tflops = achievable_tflops(topology.gpu.bf16_tflops, utilization)
     compute_s = step_flops / (tflops * 1e12)
 
-    grad_bytes = model.params * bytes_per_param(precision)
+    if peft_method in ("lora", "qlora"):
+        grad_bytes = lora_trainable_params(model, peft_rank, peft_target_modules) * bytes_per_param(precision)
+    else:
+        grad_bytes = model.params * bytes_per_param(precision)
     bottleneck_gbps = topology.bottleneck_bandwidth_gbps()
     comm_s = ring_all_reduce_seconds(grad_bytes, topology.total_gpus, bottleneck_gbps)
     comm_s *= zero_communication_multiplier(zero_stage)
