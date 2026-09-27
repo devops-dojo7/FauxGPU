@@ -64,9 +64,14 @@ interface Metric {
   display: (r: ColumnResult | undefined) => string;
 }
 
-function buildMetrics(gpu: GpuSpec | undefined, numGpus: number): Metric[] {
+function buildMetrics(gpu: GpuSpec | undefined, numGpus: number, isSharded: boolean): Metric[] {
   const capacityPerGpu = gpu?.vram_gb ?? 0;
-  const perGpuVram = (r: ColumnResult | undefined) => (r?.vram ? r.vram.total_gb / numGpus : null);
+  // When ZeRO/FSDP sharding or LoRA/QLoRA is active, /calculate/vram's
+  // total_gb is already a single rank's per-GPU figure (see VramPanel's
+  // identical convention) — dividing by numGpus again would double-count
+  // the sharding this project's own engine already applied.
+  const perGpuVram = (r: ColumnResult | undefined) =>
+    r?.vram ? (isSharded ? r.vram.total_gb : r.vram.total_gb / numGpus) : null;
 
   return [
     {
@@ -213,11 +218,11 @@ export function ComparePanel({
           fp32_master_copy: workload.fp32MasterCopy,
           checkpointing: workload.checkpointing,
           training: workload.training,
-          zero_stage: 0,
-          dp_size: 1,
-          peft_method: "full",
-          peft_rank: 8,
-          peft_target_modules: 2,
+          zero_stage: workload.zeroStage,
+          dp_size: workload.dpSize,
+          peft_method: workload.peftMethod,
+          peft_rank: workload.peftRank,
+          peft_target_modules: workload.peftTargetModules,
         }),
         canCost
           ? calculateCost({
@@ -238,11 +243,11 @@ export function ComparePanel({
               batch_size: costInputs.batchSize,
               seq_len: costInputs.seqLen,
               num_microbatches: costInputs.numMicrobatches,
-              zero_stage: 0,
+              zero_stage: workload.zeroStage,
               carbon_region: costInputs.carbonRegion,
-              peft_method: "full",
-              peft_rank: 8,
-              peft_target_modules: 2,
+              peft_method: workload.peftMethod,
+              peft_rank: workload.peftRank,
+              peft_target_modules: workload.peftTargetModules,
             })
           : Promise.resolve(null),
         calculateInference({
@@ -290,9 +295,15 @@ export function ComparePanel({
     workload.fp32MasterCopy,
     workload.checkpointing,
     workload.training,
+    workload.zeroStage,
+    workload.dpSize,
+    workload.peftMethod,
+    workload.peftRank,
+    workload.peftTargetModules,
   ]);
 
-  const metrics = useMemo(() => buildMetrics(gpu, numGpus), [gpu, numGpus]);
+  const isSharded = workload.zeroStage > 0 || workload.peftMethod !== "full";
+  const metrics = useMemo(() => buildMetrics(gpu, numGpus, isSharded), [gpu, numGpus, isSharded]);
   const metricByKey = useMemo(() => Object.fromEntries(metrics.map((m) => [m.key, m])), [metrics]);
 
   const bestBySlotKey = useMemo(() => {

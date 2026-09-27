@@ -106,6 +106,16 @@ modeling gap the simulator previously had no way to represent.
   fixed formula now passes with zero errors. Fixed to use each matrix's
   real output dimension, branching on `uses_mla`/`effective_kv_heads` the
   same way `kv_cache_bytes_per_token` already does.
+- The **Compare Models** tab's `/calculate/vram` and `/calculate/cost`
+  calls hardcoded `zero_stage: 0`/`peft_method: "full"` instead of using
+  the Training tab's actual settings — a pre-existing gap from when ZeRO
+  first shipped (0.4.0) that this feature's addition made newly worth
+  fixing rather than repeating. Now wired through, along with a matching
+  fix to the tab's own "VRAM / GPU" metric, which unconditionally divided
+  `total_gb` by the GPU count — correct for full fine-tuning's naive
+  even split, but double-counts sharding once ZeRO/LoRA/QLoRA makes
+  `total_gb` already a single rank's per-GPU figure (the same distinction
+  `VramPanel` already made correctly).
 
 Verified via real HTTP calls against a running API instance: `/calculate/vram`
 for a LLaMA-65B-shaped model lands at 1040GB (full) / 131GB (LoRA) / 34GB
@@ -123,10 +133,16 @@ drops from 583 GPU-hours/$21.0K to 271 GPU-hours/$9.7K, a real, derived
 ~2.15x speedup, not a hardcoded number. Real Falcon-7B (extreme
 multi-query attention) and DeepSeek-V3 (MLA) presets both round-tripped
 through `/calculate/vram` to confirm the GQA/MLA fixes' effect
-end-to-end. Also confirmed the actual Next.js dev server + FastAPI
-request/response round-trip renders the new controls. 37 new pytest
-tests; full suite green (298 tests, one unrelated pre-existing timing
-flake in test_runs_store.py, same one noted in 0.4.0).
+end-to-end. A full HTTP sweep of every one of this project's 76 model
+catalog presets — across all 3 `peft_method` values and both
+`/calculate/vram` and `/calculate/cost` (456 real requests total) — came
+back error-free. Also confirmed the actual Next.js dev server + FastAPI
+request/response round-trip renders the new controls, and that the
+Compare Models tab's per-GPU VRAM figure correctly stops re-dividing an
+already-sharded total once ZeRO/LoRA/QLoRA is active (44.1GB per rank,
+not a misleadingly optimistic 5.5GB). 37 new pytest tests; full suite
+green (298 tests, one unrelated pre-existing timing flake in
+test_runs_store.py, same one noted in 0.4.0).
 
 ## [0.4.0] - 2026-09-27
 
