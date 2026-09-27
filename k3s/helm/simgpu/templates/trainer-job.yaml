@@ -45,6 +45,13 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
           resources:
+            requests:
+              {{- with .Values.trainer.resources.requests }}
+              {{- toYaml . | nindent 14 }}
+              {{- end }}
             limits:
               {{ include "simgpu.gpuResourceName" . | trim }}: {{ .Values.trainer.gpusRequested | quote }}
+              {{- with .Values.trainer.resources.limits }}
+              {{- toYaml . | nindent 14 }}
+              {{- end }}
 {{- end }}

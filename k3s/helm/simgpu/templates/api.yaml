@@ -5,7 +5,16 @@ metadata:
   labels:
     app: simgpu-api
 spec:
+  {{- if not .Values.api.autoscaling.enabled }}
+  {{/*
+  Omitted entirely when autoscaling.enabled: the HPA below owns replica
+  count once it exists — setting this field here would fight it back to
+  .Values.api.replicas on every `helm upgrade` (Deployment.spec.replicas
+  is desired state Helm re-applies; HPA's own writes to it don't stick
+  across a subsequent apply that still specifies the field).
+  */}}
   replicas: {{ .Values.api.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       app: simgpu-api
@@ -45,6 +54,10 @@ spec:
             httpGet:
               path: /health
               port: {{ .Values.api.port }}
+          {{- with .Values.api.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -57,3 +70,25 @@ spec:
     - name: http
       port: {{ .Values.api.port }}
       targetPort: {{ .Values.api.port }}
+{{- if .Values.api.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: simgpu-api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: simgpu-api
+  minReplicas: {{ .Values.api.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.api.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.api.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+

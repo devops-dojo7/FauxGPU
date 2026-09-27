@@ -18,7 +18,7 @@ Source: [github.com/devops-dojo7/FauxGPU](https://github.com/devops-dojo7/FauxGP
 ## Installing this chart
 
 ```console
-helm install simgpu oci://ghcr.io/devops-dojo7/fauxgpu/charts/fauxgpu --version 0.2.3
+helm install simgpu oci://ghcr.io/devops-dojo7/fauxgpu/charts/fauxgpu --version 0.2.4
 ```
 
 That's it — every component image (device-plugin, api, trainer,
@@ -58,8 +58,13 @@ commented in place:
 - `trainer.*` — the bundled sample training Job's model preset, GPU
   topology (NVLink/InfiniBand shape, GPUs per node, node count), precision,
   and step count.
-- `api.*` / `web.*` / `inferenceServer.*` — replica counts, ports, and
-  enable/disable flags for the core services.
+- `api.*` / `web.*` / `inferenceServer.*` — replica counts, ports, resource
+  requests/limits, and enable/disable flags for the core services.
+- `api.autoscaling` — opt-in `HorizontalPodAutoscaler` for `simgpu-api`
+  (requires a metrics-server in-cluster, bundled by default in k3d/k3s).
+- `networkPolicy.enabled` — opt-in default-deny `NetworkPolicy` for
+  `simgpu-api`/`simgpu-web` with explicit allows for this chart's own
+  traffic; `kubectl port-forward` is unaffected either way.
 - `grafana.*` / `langfuse.*` / `observability.*` — optional integrations,
   every one `enabled: false` by default and a no-op until configured. Real
   credentials should always be passed via `--set-string` at deploy time,

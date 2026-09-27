@@ -131,7 +131,7 @@ Silicon/ARM node:
 
 ```bash
 k3d cluster create simgpu --agents 2 --wait
-helm install simgpu oci://ghcr.io/devops-dojo7/fauxgpu/charts/fauxgpu --version 0.2.3
+helm install simgpu oci://ghcr.io/devops-dojo7/fauxgpu/charts/fauxgpu --version 0.2.4
 
 # see the simulated GPU resources show up on every node
 kubectl describe nodes | grep -A5 simgpu.dev/gpu
@@ -198,6 +198,44 @@ helm install simgpu k3s/helm/simgpu -f k3s/helm/simgpu/values-dev.yaml
 
 Everything else (checking GPU resources, the trainer Job, port-forwarding)
 is identical to the published-image path above.
+
+### Production hardening
+
+Three opt-in `values.yaml` knobs harden the chart for anything beyond a
+throwaway local cluster, each following the repo's `enabled:`-flag
+convention:
+
+- **`api.resources`/`web.resources`/`trainer.resources`** — CPU/memory
+  requests and limits, set to small-but-real defaults out of the box (not
+  every field is optional here — Kubernetes schedules and the HPA below
+  computes utilization off `resources.requests`, so these ship set rather
+  than left empty).
+- **`api.autoscaling`** — a real `HorizontalPodAutoscaler` for
+  `simgpu-api`, scaling on CPU utilization the same way
+  `engine/autoscaling.py`'s simulation models an inference deployment
+  scaling — except this one is real, not simulated. Requires a
+  metrics-server in-cluster (bundled by default in k3d/k3s):
+  ```bash
+  helm upgrade simgpu k3s/helm/simgpu --set api.autoscaling.enabled=true
+  kubectl get hpa simgpu-api -w
+  ```
+- **`networkPolicy.enabled`** — default-deny `NetworkPolicy` for
+  `simgpu-api`/`simgpu-web`, with explicit allows for the traffic this
+  chart's own components actually generate (the trainer Job reporting
+  progress to the API; DNS; the Kubernetes apiserver calls
+  `api/k8s_launcher.py` makes to launch Jobs/Deployments). Verified against
+  a real k3d cluster: an unrelated pod gets `Could not connect to server`
+  reaching `simgpu-api`, while a pod labeled `app: simgpu-trainer` reaches
+  it fine. `kubectl port-forward` — this README's documented way to reach
+  both services — is unaffected either way, since it tunnels through the
+  apiserver/kubelet rather than the pod network `NetworkPolicy` governs.
+  Requires a NetworkPolicy-enforcing CNI; k3s's bundled Flannel enforces
+  it out of the box via its built-in kube-router controller, so this
+  works on the k3d quick-start cluster above with no extra setup:
+  ```bash
+  helm upgrade simgpu k3s/helm/simgpu --set networkPolicy.enabled=true
+  kubectl get networkpolicy
+  ```
 
 ### GPU Operator Playground
 

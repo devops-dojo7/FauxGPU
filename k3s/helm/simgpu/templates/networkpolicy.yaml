@@ -1,0 +1,104 @@
+{{/*
+Opt-in default-deny NetworkPolicy for simgpu-api and simgpu-web, with
+explicit allow rules for the traffic this chart's own components actually
+generate. See values.yaml's networkPolicy.enabled comment for the
+CNI-support caveat and the kubectl port-forward exemption.
+
+Traffic map this chart knows about:
+  - simgpu-trainer Job pods -> simgpu-api (POST /runs/*, GET
+    /runs/{id}/fabric-contention — see k3s/trainer/train.py, api/routers/runs.py)
+  - simgpu-web: none, pod-to-pod. The website's browser JS calls the API
+    directly using NEXT_PUBLIC_API_URL baked in at image build time (see
+    web/src/lib/api.ts) — the simgpu-web *pod* itself never calls
+    simgpu-api's pod IP, so no api egress/ingress rule is needed for it.
+  - simgpu-api -> Kubernetes apiserver (api/k8s_launcher.py's Job/Deployment
+    creation) and -> CoreDNS (both needed for the launcher and for any
+    external Grafana Cloud/Langfuse push when those integrations are on).
+  - simgpu-api -> the inference-server Deployments it launches on demand
+    (POST /inference/launch-k8s-server) — their pod labels are dynamic
+    (app: <generated-name>, see api/k8s_launcher.py), so this is allowed
+    via a same-namespace egress rule rather than a label selector that
+    can't reference not-yet-created pods.
+  - Anything reached via `kubectl port-forward` (this README's documented
+    access path for both simgpu-api and simgpu-web) is unaffected by any
+    rule here — port-forward tunnels through the apiserver/kubelet, never
+    the pod network NetworkPolicy governs.
+*/}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: simgpu-api
+spec:
+  podSelector:
+    matchLabels:
+      app: simgpu-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: simgpu-trainer
+      ports:
+        - port: {{ .Values.api.port }}
+  egress:
+    # CoreDNS — required for any Service-name resolution below, and for
+    # any external host lookup (Grafana Cloud/Langfuse push).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Kubernetes apiserver (api/k8s_launcher.py's Job/Deployment creation)
+    # and any external HTTPS push (Grafana Cloud/Langfuse, when enabled) —
+    # both are outbound HTTPS to a destination outside this policy's
+    # knowledge (the apiserver's ClusterIP varies per cluster; external
+    # SaaS endpoints obviously aren't cluster-internal), so this is scoped
+    # by port, not destination.
+    - ports:
+        - port: 443
+          protocol: TCP
+        - port: 6443
+          protocol: TCP
+    # Same-namespace inference-server pods this chart's own API launches
+    # on demand (POST /inference/launch-k8s-server) — dynamic app:<name>
+    # labels (see api/k8s_launcher.py), so scoped by port instead of a
+    # label selector that can't reference not-yet-created pods.
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - port: 9000
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: simgpu-web
+spec:
+  podSelector:
+    matchLabels:
+      app: simgpu-web
+  policyTypes:
+    - Ingress
+    - Egress
+  # No ingress rules: nothing in this chart talks to simgpu-web pod-to-pod
+  # (the browser reaches it only via kubectl port-forward, which bypasses
+  # NetworkPolicy entirely — see the note above). Default-deny with zero
+  # rules is intentional, not a placeholder.
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+{{- end }}

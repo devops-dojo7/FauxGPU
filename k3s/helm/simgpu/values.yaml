@@ -29,7 +29,7 @@ image:
   # Shared tag for every component unless overridden per-component below.
   # Matches this chart's own Chart.yaml appVersion — the release pipeline
   # (.github/workflows/release.yml) keeps them in lockstep.
-  tag: "0.2.3"
+  tag: "0.2.4"
   pullPolicy: IfNotPresent
 
 # =============================================================================
@@ -135,6 +135,29 @@ api:
     repository: api
   replicas: 1
   port: 8000
+  # Requests size the scheduler's placement decision and (via autoscaling
+  # below) the CPU-utilization percentage HPA computes against; limits cap
+  # what a runaway pod can consume. This is a lightweight FastAPI service —
+  # these are deliberately small defaults, not a real training/serving
+  # workload's sizing.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  # Opt-in HorizontalPodAutoscaler for simgpu-api, scaling on CPU
+  # utilization — the same metrics-server-backed mechanism
+  # engine/autoscaling.py simulates for inference replicas, here applied to
+  # the real Deployment. Requires a metrics-server in-cluster (already
+  # bundled in k3d/k3s by default) and api.resources.requests.cpu set
+  # above (HPA's percentage target is relative to that request).
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
 
 web:
   enabled: true
@@ -142,6 +165,13 @@ web:
     repository: web
   replicas: 1
   port: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 trainer:
   enabled: true
@@ -158,6 +188,17 @@ trainer:
   totalSteps: 50
   speedup: 200
   gpusRequested: 8
+  # CPU/memory requests alongside the GPU resource limit already set below
+  # (gpuResourceName: gpusRequested) — the trainer is a pure-Python
+  # simulator (no real GPU compute), so these stay small regardless of how
+  # many simulated GPUs it "requests".
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 # The real long-running inference server (k3s/inference-server), launched
 # on demand via POST /inference/launch-k8s-server rather than deployed
@@ -165,6 +206,25 @@ trainer:
 inferenceServer:
   image:
     repository: inference-server
+
+# Opt-in default-deny NetworkPolicy for the api/web Deployments — explicit
+# allow rules matching the traffic this chart's own components actually
+# need (web -> api, trainer Job -> api, the fake-gpu-operator-labels-job's
+# apiserver access is unaffected since NetworkPolicy only governs pod
+# network traffic, not apiserver calls). Off by default since it requires
+# a NetworkPolicy-enforcing CNI — k3s's bundled Flannel enforces
+# NetworkPolicy out of the box via its built-in kube-router controller, so
+# this "just works" on the k3d quick-start cluster this README's Quick
+# start targets; a from-scratch upstream Kubernetes cluster may need
+# Calico/Cilium or another policy-enforcing CNI instead.
+#
+# Note: `kubectl port-forward` (this README's documented way to reach
+# simgpu-api/simgpu-web) tunnels through the API server/kubelet, not the
+# pod network — NetworkPolicy has no visibility into it and never blocks
+# it, so turning this on doesn't break the port-forward workflow anywhere
+# in this repo's docs.
+networkPolicy:
+  enabled: false
 
 # =============================================================================
 # Optional integrations — every block below is opt-in (enabled: false by

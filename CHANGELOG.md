@@ -5,6 +5,40 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-09-27
+
+Kubernetes production-hardening for the Helm chart: resource
+requests/limits, autoscaling, and network policy — all opt-in, following
+the chart's existing `enabled:`-flag convention.
+
+### Added
+
+- **CPU/memory resource requests and limits** on `simgpu-api`, `simgpu-web`,
+  and `simgpu-trainer` (`api.resources`/`web.resources`/`trainer.resources`
+  in `values.yaml`), set to real (small) defaults rather than left empty —
+  previously the only container with any `resources:` block was the
+  trainer's GPU-resource limit.
+- **`api.autoscaling`** — a real `HorizontalPodAutoscaler` for `simgpu-api`,
+  scaling on CPU utilization (`autoscaling/v2`, requires an in-cluster
+  metrics-server — bundled by default in k3d/k3s). `simgpu-api`'s
+  `Deployment.spec.replicas` is omitted entirely when enabled, so the HPA
+  and Helm don't fight over ownership of that field across upgrades.
+- **`networkPolicy.enabled`** — default-deny `NetworkPolicy` for
+  `simgpu-api`/`simgpu-web`, with explicit allows for the traffic this
+  chart's own components actually generate (trainer Job → api, DNS, the
+  Kubernetes apiserver calls `api/k8s_launcher.py` makes, and the
+  dynamically-named inference-server Deployments the API launches on
+  demand). `kubectl port-forward` — this project's documented access path
+  — is unaffected either way, since it bypasses the pod network entirely.
+
+Verified against a real k3d cluster (not just `helm template`): a live
+`helm upgrade` with all three flags enabled together, confirmed the HPA
+actually computes real CPU utilization from metrics-server
+(`cpu: 2%/70%`), and functionally tested the NetworkPolicy both ways — an
+unrelated pod gets refused reaching `simgpu-api`, a pod labeled
+`app: simgpu-trainer` reaches it fine, and `kubectl port-forward` still
+works with the policy active.
+
 ## [0.3.0] - 2026-09-27
 
 Two new simulation-engine features: carbon/energy accounting and

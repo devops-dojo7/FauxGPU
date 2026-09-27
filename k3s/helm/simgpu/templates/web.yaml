@@ -24,6 +24,10 @@ spec:
               value: "0.0.0.0"
           ports:
             - containerPort: {{ .Values.web.port }}
+          {{- with .Values.web.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
 ---
 apiVersion: v1
 kind: Service
