@@ -67,6 +67,9 @@ class CostRequest(BaseModel):
     batch_size: int = 1
     seq_len: int = 2048
     num_microbatches: int = 1
+    carbon_region: str = Field(
+        "global-avg", description="Grid carbon-intensity region — see engine.carbon.GRID_CARBON_INTENSITY_G_PER_KWH"
+    )
 
 
 class CostResponse(BaseModel):
@@ -83,6 +86,34 @@ class CostResponse(BaseModel):
     power_watts_per_gpu: float
     total_power_kw: float
     total_energy_kwh: float
+    co2e_kg: float
+    carbon_region: str
+    grid_intensity_g_per_kwh: float
+    equivalent_car_km: float
+    equivalent_flights_ny_london: float
+
+
+class SpotPricingRequest(BaseModel):
+    on_demand_price_per_hr_usd: float = Field(..., gt=0)
+    total_gpus: int = Field(..., gt=0)
+    base_time_hours: float = Field(..., ge=0)
+    step_time_s: float = Field(..., gt=0)
+    checkpoint_interval_steps: int = Field(..., gt=0)
+    checkpoint_size_gb: float = Field(..., ge=0)
+    preemptions_per_1000_gpu_hours: float = Field(1.0, ge=0)
+    discount: float = Field(0.65, ge=0, lt=1)
+
+
+class SpotPricingResponse(BaseModel):
+    on_demand_cost_usd: float
+    spot_price_per_hr_usd: float
+    expected_preemptions: float
+    expected_lost_steps: float
+    expected_recovery_overhead_hours: float
+    expected_wall_clock_hours: float
+    expected_total_cost_usd: float
+    savings_usd: float
+    savings_pct: float
 
 
 class InferenceRequest(BaseModel):

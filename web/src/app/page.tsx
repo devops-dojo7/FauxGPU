@@ -14,6 +14,7 @@ import { VramPanel } from "@/components/VramPanel";
 import { TopologyPanel, TopologyState } from "@/components/TopologyPanel";
 import { TopologyDiagram } from "@/components/TopologyDiagram";
 import { CostPanel, CostInputsState } from "@/components/CostPanel";
+import { SpotInputsState } from "@/components/SpotPricingSection";
 import { LiveTrainingPanel } from "@/components/LiveTrainingPanel";
 import { InferencePanel, InferenceInputsState } from "@/components/InferencePanel";
 import { LiveInferencePlayground } from "@/components/LiveInferencePlayground";
@@ -81,6 +82,15 @@ export default function Home() {
     batchSize: 4,
     seqLen: 2048,
     numMicrobatches: 1,
+    carbonRegion: "global-avg",
+  });
+
+  const [spotInputs, setSpotInputs] = useState<SpotInputsState>({
+    enabled: false,
+    checkpointIntervalSteps: 50,
+    checkpointSizeGb: 20,
+    preemptionsPer1000GpuHours: 1.0,
+    discount: 0.65,
   });
 
   const [inferenceInputs, setInferenceInputs] = useState<InferenceInputsState>({
@@ -183,6 +193,7 @@ export default function Home() {
       batch_size: costInputs.batchSize,
       seq_len: costInputs.seqLen,
       num_microbatches: costInputs.numMicrobatches,
+      carbon_region: costInputs.carbonRegion,
     })
       .then(setCost)
       .catch((e) => setCostError(e.message))
@@ -287,6 +298,8 @@ export default function Home() {
                 error={costError}
                 numGpus={numGpus}
                 pricePerHr={gpu?.price_per_hr_usd ?? 0}
+                spotState={spotInputs}
+                onSpotChange={setSpotInputs}
               />
             </div>
 

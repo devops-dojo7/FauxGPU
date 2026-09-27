@@ -233,6 +233,7 @@ export function ComparePanel({
               batch_size: costInputs.batchSize,
               seq_len: costInputs.seqLen,
               num_microbatches: costInputs.numMicrobatches,
+              carbon_region: costInputs.carbonRegion,
             })
           : Promise.resolve(null),
         calculateInference({

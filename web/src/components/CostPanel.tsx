@@ -1,8 +1,9 @@
 "use client";
 
-import { CostResponse } from "@/lib/types";
+import { CARBON_REGIONS, CostResponse } from "@/lib/types";
 import { formatCompact, formatUsd } from "@/lib/format";
-import { Card, Field, NumberInput, Stat } from "./ui";
+import { Card, Field, NumberInput, Select, Stat } from "./ui";
+import { SpotInputsState, SpotPricingSection } from "./SpotPricingSection";
 
 export interface CostInputsState {
   tokensPerStep: number;
@@ -13,6 +14,7 @@ export interface CostInputsState {
   batchSize: number;
   seqLen: number;
   numMicrobatches: number;
+  carbonRegion: string;
 }
 
 export function CostPanel({
@@ -23,6 +25,8 @@ export function CostPanel({
   error,
   numGpus,
   pricePerHr,
+  spotState,
+  onSpotChange,
 }: {
   state: CostInputsState;
   onChange: (s: CostInputsState) => void;
@@ -31,13 +35,15 @@ export function CostPanel({
   error: string | null;
   numGpus: number;
   pricePerHr: number;
+  spotState: SpotInputsState;
+  onSpotChange: (s: SpotInputsState) => void;
 }) {
   const set = (patch: Partial<CostInputsState>) => onChange({ ...state, ...patch });
   const effectiveGpus = cost?.total_gpus ?? numGpus;
 
   return (
     <Card title="Training cost">
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <Field label="Tokens / step">
           <NumberInput value={state.tokensPerStep} min={1} step={1024} onChange={(v) => set({ tokensPerStep: v })} />
         </Field>
@@ -46,6 +52,15 @@ export function CostPanel({
         </Field>
         <Field label="GPU utilization">
           <NumberInput value={state.utilization} min={0.05} max={1} step={0.05} onChange={(v) => set({ utilization: v })} />
+        </Field>
+        <Field label="Grid region (carbon)">
+          <Select value={state.carbonRegion} onChange={(v) => set({ carbonRegion: v })}>
+            {CARBON_REGIONS.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.label}
+              </option>
+            ))}
+          </Select>
         </Field>
       </div>
 
@@ -92,7 +107,23 @@ export function CostPanel({
             <Stat label="Power per GPU" value={`${cost.power_watts_per_gpu.toFixed(0)} W`} sub="time-weighted avg" />
             <Stat label="Cluster power" value={`${cost.total_power_kw.toFixed(1)} kW`} sub={`${effectiveGpus} GPUs`} />
             <Stat label="Total energy" value={`${formatCompact(cost.total_energy_kwh)} kWh`} sub="for the full training run" />
+            <Stat
+              label="Carbon footprint"
+              value={`${formatCompact(cost.co2e_kg)} kg CO2e`}
+              sub={`${cost.grid_intensity_g_per_kwh.toFixed(0)} gCO2e/kWh grid`}
+            />
+            <Stat
+              label="≈ car driving"
+              value={`${formatCompact(cost.equivalent_car_km)} km`}
+              sub="illustrative equivalence"
+            />
+            <Stat
+              label="≈ flights (NY↔LDN)"
+              value={cost.equivalent_flights_ny_london.toFixed(2)}
+              sub="illustrative equivalence"
+            />
           </div>
+          <SpotPricingSection state={spotState} onChange={onSpotChange} cost={cost} pricePerHr={pricePerHr} />
         </>
       )}
       {loading && <p className="text-sm text-muted">Calculating…</p>}

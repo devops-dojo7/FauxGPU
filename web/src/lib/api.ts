@@ -38,6 +38,8 @@ import type {
   TraceReplayRequest,
   SpeculativeDecodingRequest,
   SpeculativeDecodingResponse,
+  SpotPricingRequest,
+  SpotPricingResponse,
   TopologyRequest,
   TopologyResponse,
   VramRequest,
@@ -191,6 +193,8 @@ export const fetchGpus = () => get<GpuSpec[]>("/gpus");
 export const fetchFabrics = () => get<Fabric[]>("/gpus/fabrics");
 export const calculateVram = (req: VramRequest) => post<VramRequest, VramResponse>("/calculate/vram", req);
 export const calculateCost = (req: CostRequest) => post<CostRequest, CostResponse>("/calculate/cost", req);
+export const calculateSpotPricing = (req: SpotPricingRequest) =>
+  post<SpotPricingRequest, SpotPricingResponse>("/calculate/spot-pricing", req);
 export const resolveTopology = (req: TopologyRequest) =>
   post<TopologyRequest, TopologyResponse>("/topology", req);
 export const calculateInference = (req: InferenceRequest) =>

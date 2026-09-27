@@ -100,6 +100,7 @@ export interface CostRequest {
   batch_size: number;
   seq_len: number;
   num_microbatches: number;
+  carbon_region: string;
 }
 
 export interface CostResponse {
@@ -116,6 +117,52 @@ export interface CostResponse {
   power_watts_per_gpu: number;
   total_power_kw: number;
   total_energy_kwh: number;
+  co2e_kg: number;
+  carbon_region: string;
+  grid_intensity_g_per_kwh: number;
+  equivalent_car_km: number;
+  equivalent_flights_ny_london: number;
+}
+
+// Grid carbon-intensity regions engine.carbon.GRID_CARBON_INTENSITY_G_PER_KWH
+// knows about — kept in sync by hand since the engine table itself is a
+// small, rarely-changing illustrative lookup rather than something worth a
+// round-trip /calculate/cost call just to enumerate.
+export const CARBON_REGIONS: { id: string; label: string }[] = [
+  { id: "global-avg", label: "Global average" },
+  { id: "us-avg", label: "US average" },
+  { id: "us-west-hydro", label: "US Pacific Northwest (hydro-heavy)" },
+  { id: "us-texas", label: "US Texas (ERCOT)" },
+  { id: "eu-avg", label: "EU-27 average" },
+  { id: "eu-france-nuclear", label: "France (nuclear-heavy)" },
+  { id: "eu-germany", label: "Germany" },
+  { id: "uk", label: "United Kingdom" },
+  { id: "china", label: "China" },
+  { id: "india", label: "India" },
+  { id: "asia-pacific-avg", label: "Asia-Pacific average" },
+];
+
+export interface SpotPricingRequest {
+  on_demand_price_per_hr_usd: number;
+  total_gpus: number;
+  base_time_hours: number;
+  step_time_s: number;
+  checkpoint_interval_steps: number;
+  checkpoint_size_gb: number;
+  preemptions_per_1000_gpu_hours: number;
+  discount: number;
+}
+
+export interface SpotPricingResponse {
+  on_demand_cost_usd: number;
+  spot_price_per_hr_usd: number;
+  expected_preemptions: number;
+  expected_lost_steps: number;
+  expected_recovery_overhead_hours: number;
+  expected_wall_clock_hours: number;
+  expected_total_cost_usd: number;
+  savings_usd: number;
+  savings_pct: number;
 }
 
 export interface InferenceRequest {

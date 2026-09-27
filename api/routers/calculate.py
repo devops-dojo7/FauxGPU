@@ -10,9 +10,12 @@ from api.schemas import (
     RecommendResponse,
     SpeculativeDecodingRequest,
     SpeculativeDecodingResponse,
+    SpotPricingRequest,
+    SpotPricingResponse,
     VramRequest,
     VramResponse,
 )
+from engine.carbon import estimate_carbon
 from engine.cost import estimate_training_cost
 from engine.gpu_specs import get_gpu
 from engine.inference import estimate_serving_capacity, simulate_serving
@@ -21,6 +24,7 @@ from engine.parallelism import estimate_parallel_step_time
 from engine.power import training_step_power_watts
 from engine.recommend import recommend_configurations
 from engine.speculative import simulate_speculative_decoding
+from engine.spot import estimate_spot_run
 from engine.topology import build_topology
 
 router = APIRouter(prefix="/calculate", tags=["calculate"])
@@ -91,6 +95,10 @@ def calculate_cost(req: CostRequest):
 
     total_power_kw = power_per_gpu * step.total_gpus / 1000
     total_energy_kwh = total_power_kw * cost.total_time_hours
+    try:
+        carbon = estimate_carbon(total_energy_kwh, region=req.carbon_region)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     return CostResponse(
         compute_s_per_step=step.compute_s,
@@ -106,7 +114,38 @@ def calculate_cost(req: CostRequest):
         power_watts_per_gpu=power_per_gpu,
         total_power_kw=total_power_kw,
         total_energy_kwh=total_energy_kwh,
+        co2e_kg=carbon.co2e_kg,
+        carbon_region=carbon.region,
+        grid_intensity_g_per_kwh=carbon.grid_intensity_g_per_kwh,
+        equivalent_car_km=carbon.equivalent_car_km,
+        equivalent_flights_ny_london=carbon.equivalent_flights_ny_london,
     )
+
+
+@router.post("/spot-pricing", response_model=SpotPricingResponse)
+def calculate_spot_pricing(req: SpotPricingRequest):
+    """Expected cost/time running a training job on spot/preemptible
+    capacity instead of on-demand — see engine.spot for the full model
+    (discounted hourly rate offset by expected preemption recovery
+    overhead). A standalone calculator rather than folded into /cost,
+    since spot pricing is an independent what-if layered on top of any
+    already-computed on-demand run (this project's own $/hr, or a real
+    quote from elsewhere)."""
+    try:
+        result = estimate_spot_run(
+            on_demand_price_per_hr_usd=req.on_demand_price_per_hr_usd,
+            total_gpus=req.total_gpus,
+            base_time_hours=req.base_time_hours,
+            step_time_s=req.step_time_s,
+            checkpoint_interval_steps=req.checkpoint_interval_steps,
+            checkpoint_size_gb=req.checkpoint_size_gb,
+            preemptions_per_1000_gpu_hours=req.preemptions_per_1000_gpu_hours,
+            discount=req.discount,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return SpotPricingResponse(**result.__dict__)
 
 
 @router.post("/inference", response_model=InferenceResponse)

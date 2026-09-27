@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-09-27
+
+Two new simulation-engine features: carbon/energy accounting and
+spot/preemptible pricing economics.
+
+### Added
+
+- **Carbon footprint estimation** (`engine/carbon.py`) — converts a
+  training run's already-computed energy consumption (`total_energy_kwh`,
+  from the existing power model) into estimated CO2e, using illustrative
+  per-region grid carbon-intensity figures (`GRID_CARBON_INTENSITY_G_PER_KWH`,
+  same "illustrative snapshot" convention as the GPU price table). Wired
+  into `POST /calculate/cost` (`carbon_region` request field; `co2e_kg`,
+  `grid_intensity_g_per_kwh`, and car-km/flight equivalences in the
+  response) and the Training cost panel — a new "Grid region" selector and
+  three carbon stat cards next to the existing power/energy figures.
+- **Spot/preemptible pricing** (`engine/spot.py`) — models the discounted
+  hourly rate real spot capacity offers, offset by expected preemption
+  recovery overhead (reuses `engine.checkpointing`'s recovery-cost formula,
+  since a preemption is economically the same event as a chaos-injected
+  node_drain crash). New `POST /calculate/spot-pricing` endpoint.
+
 ## [0.2.3] - 2026-09-27
 
 - Added `k3s/helm/simgpu/README.md` — Artifact Hub (and `helm show readme`)
