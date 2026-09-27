@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { calculateRecommend, fetchAiProviders, fetchLangfuseStatus, recommendNl } from "@/lib/api";
 import { formatCompact, formatUsd } from "@/lib/format";
 import { AiProvider, AiProviderStatus, getModelPresetTier, LangfuseStatus, MODEL_PRESET_GROUPS, MODEL_PRESETS, RecommendationCandidate } from "@/lib/types";
+import { isMoe } from "@/lib/simEngine";
 import { Card, Field, NumberInput, Select, Toggle } from "./ui";
 import { AiModelSelect } from "./AiModelSelect";
 
@@ -55,6 +56,7 @@ export function RecommenderPanel() {
 
   const preset = MODEL_PRESETS.find((p) => p.id === presetId) ?? MODEL_PRESETS[0];
   const presetTier = getModelPresetTier(presetId);
+  const moe = isMoe(preset);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for an outbound fetch, not derived state
@@ -135,7 +137,7 @@ export function RecommenderPanel() {
 
       <Card title="What-if recommender">
         <p className="text-xs text-muted max-w-2xl mb-4">
-          Pick a model and a target training run, and this searches GPU type x GPU count x tensor/pipeline-parallel
+          Pick a model and a target training run, and this searches GPU type x GPU count x tensor/pipeline{moe ? "/expert" : ""}-parallel
           degree for feasible configurations, ranked by {objective === "cost" ? "lowest total cost" : "fastest total time"}.
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -205,7 +207,7 @@ export function RecommenderPanel() {
                 <tr className="text-left text-xs uppercase tracking-wider text-muted border-b border-hairline">
                   <th className="py-2 pr-3">GPU</th>
                   <th className="py-2 pr-3">GPUs</th>
-                  <th className="py-2 pr-3">TP x PP</th>
+                  <th className="py-2 pr-3">TP x PP{moe ? " x EP" : ""}</th>
                   <th className="py-2 pr-3">Total cost</th>
                   <th className="py-2 pr-3">Total time</th>
                   <th className="py-2 pr-3">$/1k tokens</th>
@@ -214,10 +216,10 @@ export function RecommenderPanel() {
               </thead>
               <tbody>
                 {candidates.map((c, i) => (
-                  <tr key={`${c.gpu_id}-${c.num_gpus}-${c.tp_degree}-${c.pp_degree}`} className={`border-b border-hairline-soft last:border-0 ${i === 0 ? "text-success font-semibold" : "text-body-strong"}`}>
+                  <tr key={`${c.gpu_id}-${c.num_gpus}-${c.tp_degree}-${c.pp_degree}-${c.ep_degree}`} className={`border-b border-hairline-soft last:border-0 ${i === 0 ? "text-success font-semibold" : "text-body-strong"}`}>
                     <td className="py-2 pr-3">{c.gpu_name}</td>
                     <td className="py-2 pr-3 tabular-nums">{c.num_gpus}</td>
-                    <td className="py-2 pr-3 tabular-nums">{c.tp_degree} x {c.pp_degree}</td>
+                    <td className="py-2 pr-3 tabular-nums">{c.tp_degree} x {c.pp_degree}{moe ? ` x ${c.ep_degree}` : ""}</td>
                     <td className="py-2 pr-3 tabular-nums">{formatUsd(c.total_cost_usd)}</td>
                     <td className="py-2 pr-3 tabular-nums">{formatCompact(c.total_time_hours)} hr</td>
                     <td className="py-2 pr-3 tabular-nums">{formatUsd(c.cost_per_1k_tokens_usd)}</td>

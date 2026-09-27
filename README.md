@@ -38,7 +38,8 @@ themselves are faux.
 - **Learning GPU internals**: VRAM breakdown (weights/gradients/optimizer
   states/activations/KV-cache), architecture variants (GQA, MoE, MLA),
   ZeRO-DP/FSDP model-state sharding stages, LoRA/QLoRA parameter-efficient
-  fine-tuning, NVLink/InfiniBand topology bandwidth, and training
+  fine-tuning, MoE expert parallelism (dispatch+combine all-to-all
+  communication), NVLink/InfiniBand topology bandwidth, and training
   cost/power/carbon modeling — all interactive, in a browser.
 - **Learning inference serving**: prefill (compute-bound TTFT) vs. decode
   (memory-bandwidth-bound TPOT), prefix-cache-hit routing, vLLM
@@ -488,7 +489,7 @@ Live status board: [FauxGPU Roadmap](https://github.com/orgs/devops-dojo7/projec
 Built and verified so far: the calculation engine and FastAPI service;
 the Next.js site; the K3s fake-GPU device-plugin layer; the llm-d-style
 inference simulator; architecture-aware model formulas (GQA/MoE/MLA);
-tensor/pipeline parallelism and power modeling; speculative decoding and a
+tensor/pipeline/expert parallelism and power modeling; speculative decoding and a
 Prometheus metrics bridge; optional real Grafana Cloud push; and the
 mock-datacenter platform expansion — fake-gpu-operator, a KWOK-simulated
 fleet, a full Grafana/Prometheus/Langfuse observability stack, real

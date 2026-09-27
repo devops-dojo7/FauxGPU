@@ -177,3 +177,27 @@ def test_cost_endpoint_rejects_peft_combined_with_zero_stage():
     with pytest.raises(HTTPException) as exc_info:
         calculate_cost(_cost_request(peft_method="lora", zero_stage=1))
     assert exc_info.value.status_code == 400
+
+
+# --- Expert parallelism (MoE all-to-all dispatch/combine) ---
+
+MIXTRAL_8X7B = ModelShapeIn(
+    params=46.7e9, active_params=12.9e9, num_layers=32, hidden_dim=4096, num_heads=32, head_dim=128,
+    num_kv_heads=8, num_experts=8, top_k=2,
+)
+
+
+def test_cost_endpoint_expert_communication_scales_with_ep_degree():
+    multi_gpu_topo = TopologyRequest(shape="nvlink_node", gpu_id="h100-sxm", gpus_per_node=8)
+    ep1 = calculate_cost(_cost_request(model=MIXTRAL_8X7B, topology=multi_gpu_topo, ep_degree=1))
+    ep4 = calculate_cost(_cost_request(model=MIXTRAL_8X7B, topology=multi_gpu_topo, ep_degree=4))
+    assert ep1.expert_communication_s_per_step == 0.0
+    assert ep4.expert_communication_s_per_step > 0.0
+    assert ep4.total_gpus == ep1.total_gpus * 4
+
+
+def test_cost_endpoint_expert_parallelism_is_noop_for_dense_models():
+    multi_gpu_topo = TopologyRequest(shape="nvlink_node", gpu_id="h100-sxm", gpus_per_node=8)
+    ep1 = calculate_cost(_cost_request(topology=multi_gpu_topo, ep_degree=1))  # LLAMA2_7B, dense
+    ep8 = calculate_cost(_cost_request(topology=multi_gpu_topo, ep_degree=8))
+    assert ep1.total_s_per_step == ep8.total_s_per_step

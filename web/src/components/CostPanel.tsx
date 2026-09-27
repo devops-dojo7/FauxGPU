@@ -1,7 +1,8 @@
 "use client";
 
-import { CARBON_REGIONS, CostResponse } from "@/lib/types";
+import { CARBON_REGIONS, CostResponse, ModelShape } from "@/lib/types";
 import { formatCompact, formatUsd } from "@/lib/format";
+import { isMoe } from "@/lib/simEngine";
 import { Card, Field, NumberInput, Select, Stat } from "./ui";
 import { SpotInputsState, SpotPricingSection } from "./SpotPricingSection";
 
@@ -11,6 +12,7 @@ export interface CostInputsState {
   utilization: number;
   tpDegree: number;
   ppDegree: number;
+  epDegree: number;
   batchSize: number;
   seqLen: number;
   numMicrobatches: number;
@@ -25,6 +27,7 @@ export function CostPanel({
   error,
   numGpus,
   pricePerHr,
+  model,
   spotState,
   onSpotChange,
 }: {
@@ -35,11 +38,13 @@ export function CostPanel({
   error: string | null;
   numGpus: number;
   pricePerHr: number;
+  model: ModelShape;
   spotState: SpotInputsState;
   onSpotChange: (s: SpotInputsState) => void;
 }) {
   const set = (patch: Partial<CostInputsState>) => onChange({ ...state, ...patch });
   const effectiveGpus = cost?.total_gpus ?? numGpus;
+  const moe = isMoe(model);
 
   return (
     <Card title="Training cost">
@@ -74,6 +79,11 @@ export function CostPanel({
         <Field label="Pipeline parallel (PP)">
           <NumberInput value={state.ppDegree} min={1} max={16} onChange={(v) => set({ ppDegree: v })} />
         </Field>
+        {moe && (
+          <Field label="Expert parallel (EP)">
+            <NumberInput value={state.epDegree} min={1} max={16} onChange={(v) => set({ epDegree: v })} />
+          </Field>
+        )}
         <Field label="Microbatches">
           <NumberInput value={state.numMicrobatches} min={1} max={256} onChange={(v) => set({ numMicrobatches: v })} />
         </Field>
@@ -87,7 +97,8 @@ export function CostPanel({
 
       <p className="text-xs text-muted mb-3">
         Cluster: {effectiveGpus} GPU{effectiveGpus > 1 ? "s" : ""} × ${pricePerHr}/hr = ${(effectiveGpus * pricePerHr).toFixed(2)}/hr
-        {(state.tpDegree > 1 || state.ppDegree > 1) && ` (${numGpus} × TP${state.tpDegree} × PP${state.ppDegree})`}
+        {(state.tpDegree > 1 || state.ppDegree > 1 || (moe && state.epDegree > 1)) &&
+          ` (${numGpus} × TP${state.tpDegree} × PP${state.ppDegree}${moe && state.epDegree > 1 ? ` × EP${state.epDegree}` : ""})`}
       </p>
 
       {error && <p className="text-sm text-error">{error}</p>}
@@ -97,7 +108,7 @@ export function CostPanel({
             <Stat
               label="Step time"
               value={`${(cost.total_s_per_step * 1000).toFixed(0)} ms`}
-              sub={`compute ${(cost.compute_s_per_step * 1000).toFixed(0)}ms + DP comm ${(cost.communication_s_per_step * 1000).toFixed(0)}ms${cost.tp_communication_s_per_step > 0 ? ` + TP comm ${(cost.tp_communication_s_per_step * 1000).toFixed(0)}ms` : ""}${cost.pipeline_bubble_s_per_step > 0 ? ` + PP bubble ${(cost.pipeline_bubble_s_per_step * 1000).toFixed(0)}ms` : ""}`}
+              sub={`compute ${(cost.compute_s_per_step * 1000).toFixed(0)}ms + DP comm ${(cost.communication_s_per_step * 1000).toFixed(0)}ms${cost.tp_communication_s_per_step > 0 ? ` + TP comm ${(cost.tp_communication_s_per_step * 1000).toFixed(0)}ms` : ""}${cost.pipeline_bubble_s_per_step > 0 ? ` + PP bubble ${(cost.pipeline_bubble_s_per_step * 1000).toFixed(0)}ms` : ""}${cost.expert_communication_s_per_step > 0 ? ` + EP comm ${(cost.expert_communication_s_per_step * 1000).toFixed(0)}ms` : ""}`}
             />
             <Stat label="Total steps" value={formatCompact(cost.total_steps)} />
             <Stat label="Wall-clock time" value={`${cost.total_time_hours.toFixed(1)} hr`} sub={`${(cost.total_time_hours / 24).toFixed(1)} days`} />

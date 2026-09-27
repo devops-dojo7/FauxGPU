@@ -46,6 +46,8 @@ export interface ModelShape {
   num_kv_heads?: number | null; // GQA: KV head count, smaller than num_heads
   active_params?: number | null; // MoE: params touched per token (vs. total `params`)
   kv_latent_dim?: number | null; // MLA: compressed KV latent dim per layer (replaces head-count KV formula)
+  num_experts?: number | null; // MoE: total routed-expert pool size (expert-parallel all-to-all sizing)
+  top_k?: number | null; // MoE: experts routed to per token (expert-parallel all-to-all sizing)
 }
 
 export interface VramRequest {
@@ -102,6 +104,7 @@ export interface CostRequest {
   utilization: number;
   tp_degree: number;
   pp_degree: number;
+  ep_degree: number;
   batch_size: number;
   seq_len: number;
   num_microbatches: number;
@@ -117,6 +120,7 @@ export interface CostResponse {
   communication_s_per_step: number;
   tp_communication_s_per_step: number;
   pipeline_bubble_s_per_step: number;
+  expert_communication_s_per_step: number;
   total_s_per_step: number;
   total_gpus: number;
   total_steps: number;
@@ -360,6 +364,7 @@ export interface RecommendationCandidate {
   num_gpus: number;
   tp_degree: number;
   pp_degree: number;
+  ep_degree: number;
   total_cost_usd: number;
   total_time_hours: number;
   cost_per_1k_tokens_usd: number;
@@ -669,18 +674,27 @@ export const MODEL_PRESETS: ModelPreset[] = [
   { id: "command-r-plus", label: "Command R+ 104B", params: 104.0e9, num_layers: 64, hidden_dim: 12288, num_heads: 96, head_dim: 128, num_kv_heads: 8 },
 
   // MoE — `active_params` is what's touched per token; `params` is the total resident-in-VRAM count.
-  { id: "mixtral-8x7b", label: "Mixtral 8x7B (MoE)", params: 46.7e9, active_params: 12.9e9, num_layers: 32, hidden_dim: 4096, num_heads: 32, head_dim: 128, num_kv_heads: 8 },
-  { id: "qwen3-30b-a3b", label: "Qwen3 30B-A3B (MoE)", params: 30.5e9, active_params: 3.3e9, num_layers: 48, hidden_dim: 2048, num_heads: 32, head_dim: 128, num_kv_heads: 4 },
-  { id: "gpt-oss-20b", label: "gpt-oss-20B (MoE)", params: 21.0e9, active_params: 3.6e9, num_layers: 24, hidden_dim: 2880, num_heads: 64, head_dim: 64, num_kv_heads: 8 },
-  { id: "mixtral-8x22b", label: "Mixtral 8x22B (MoE)", params: 141.0e9, active_params: 39.0e9, num_layers: 56, hidden_dim: 6144, num_heads: 48, head_dim: 128, num_kv_heads: 8 },
-  { id: "dbrx", label: "DBRX 132B-A36B (MoE)", params: 132.0e9, active_params: 36.0e9, num_layers: 40, hidden_dim: 6144, num_heads: 48, head_dim: 128, num_kv_heads: 8 },
-  { id: "gpt-oss-120b", label: "gpt-oss-120B (MoE)", params: 117.0e9, active_params: 5.1e9, num_layers: 36, hidden_dim: 2880, num_heads: 64, head_dim: 64, num_kv_heads: 8 },
-  { id: "llama4-scout", label: "Llama 4 Scout 109B-A17B (MoE)", params: 109.0e9, active_params: 17.0e9, num_layers: 48, hidden_dim: 5120, num_heads: 40, head_dim: 128, num_kv_heads: 8 },
-  { id: "grok-1", label: "Grok-1 314B-A86B (MoE)", params: 314.0e9, active_params: 86.0e9, num_layers: 64, hidden_dim: 6144, num_heads: 48, head_dim: 128, num_kv_heads: 8 },
-  { id: "qwen3-235b-a22b", label: "Qwen3 235B-A22B (MoE)", params: 235.0e9, active_params: 22.0e9, num_layers: 94, hidden_dim: 4096, num_heads: 64, head_dim: 128, num_kv_heads: 4 },
-  { id: "llama4-maverick", label: "Llama 4 Maverick 400B-A17B (MoE)", params: 400.0e9, active_params: 17.0e9, num_layers: 48, hidden_dim: 5120, num_heads: 40, head_dim: 128, num_kv_heads: 8 },
-  { id: "glm-4.5-air", label: "GLM-4.5-Air 106B-A12B (MoE)", params: 106.0e9, active_params: 12.0e9, num_layers: 46, hidden_dim: 4096, num_heads: 96, head_dim: 128, num_kv_heads: 8 },
-  { id: "glm-4.5", label: "GLM-4.5 355B-A32B (MoE)", params: 355.0e9, active_params: 32.0e9, num_layers: 92, hidden_dim: 5120, num_heads: 96, head_dim: 128, num_kv_heads: 8 },
+  // num_experts/top_k (added for expert-parallel all-to-all sizing) are each
+  // model's own published router config (HF config.json num_local_experts/
+  // num_experts + num_experts_per_tok, or the equivalent field name) — see
+  // the exception comments below for the handful of entries that deviate.
+  { id: "mixtral-8x7b", label: "Mixtral 8x7B (MoE)", params: 46.7e9, active_params: 12.9e9, num_layers: 32, hidden_dim: 4096, num_heads: 32, head_dim: 128, num_kv_heads: 8, num_experts: 8, top_k: 2 },
+  { id: "qwen3-30b-a3b", label: "Qwen3 30B-A3B (MoE)", params: 30.5e9, active_params: 3.3e9, num_layers: 48, hidden_dim: 2048, num_heads: 32, head_dim: 128, num_kv_heads: 4, num_experts: 128, top_k: 8 },
+  { id: "gpt-oss-20b", label: "gpt-oss-20B (MoE)", params: 21.0e9, active_params: 3.6e9, num_layers: 24, hidden_dim: 2880, num_heads: 64, head_dim: 64, num_kv_heads: 8, num_experts: 32, top_k: 4 },
+  { id: "mixtral-8x22b", label: "Mixtral 8x22B (MoE)", params: 141.0e9, active_params: 39.0e9, num_layers: 56, hidden_dim: 6144, num_heads: 48, head_dim: 128, num_kv_heads: 8, num_experts: 8, top_k: 2 },
+  { id: "dbrx", label: "DBRX 132B-A36B (MoE)", params: 132.0e9, active_params: 36.0e9, num_layers: 40, hidden_dim: 6144, num_heads: 48, head_dim: 128, num_kv_heads: 8, num_experts: 16, top_k: 4 },
+  { id: "gpt-oss-120b", label: "gpt-oss-120B (MoE)", params: 117.0e9, active_params: 5.1e9, num_layers: 36, hidden_dim: 2880, num_heads: 64, head_dim: 64, num_kv_heads: 8, num_experts: 128, top_k: 4 },
+  // Llama 4 Scout/Maverick route each token to 1 of num_local_experts *plus*
+  // an always-on shared expert (per Meta's own architecture description);
+  // top_k below is the routed-only count (num_experts_per_tok=1 in the
+  // published config) since the shared expert doesn't participate in the
+  // all-to-all dispatch this engine models (it runs locally on every GPU).
+  { id: "llama4-scout", label: "Llama 4 Scout 109B-A17B (MoE)", params: 109.0e9, active_params: 17.0e9, num_layers: 48, hidden_dim: 5120, num_heads: 40, head_dim: 128, num_kv_heads: 8, num_experts: 16, top_k: 1 },
+  { id: "grok-1", label: "Grok-1 314B-A86B (MoE)", params: 314.0e9, active_params: 86.0e9, num_layers: 64, hidden_dim: 6144, num_heads: 48, head_dim: 128, num_kv_heads: 8, num_experts: 8, top_k: 2 },
+  { id: "qwen3-235b-a22b", label: "Qwen3 235B-A22B (MoE)", params: 235.0e9, active_params: 22.0e9, num_layers: 94, hidden_dim: 4096, num_heads: 64, head_dim: 128, num_kv_heads: 4, num_experts: 128, top_k: 8 },
+  { id: "llama4-maverick", label: "Llama 4 Maverick 400B-A17B (MoE)", params: 400.0e9, active_params: 17.0e9, num_layers: 48, hidden_dim: 5120, num_heads: 40, head_dim: 128, num_kv_heads: 8, num_experts: 128, top_k: 1 },
+  { id: "glm-4.5-air", label: "GLM-4.5-Air 106B-A12B (MoE)", params: 106.0e9, active_params: 12.0e9, num_layers: 46, hidden_dim: 4096, num_heads: 96, head_dim: 128, num_kv_heads: 8, num_experts: 128, top_k: 8 },
+  { id: "glm-4.5", label: "GLM-4.5 355B-A32B (MoE)", params: 355.0e9, active_params: 32.0e9, num_layers: 92, hidden_dim: 5120, num_heads: 96, head_dim: 128, num_kv_heads: 8, num_experts: 160, top_k: 8 },
   // Mistral Large 3 (mistralai/Mistral-Large-3-675B-Instruct-2512 on HF,
   // params.json) — plain multi-head attention, not GQA: its published
   // num_kv_heads equals num_heads (128 == 128), so num_kv_heads is left
@@ -690,22 +704,23 @@ export const MODEL_PRESETS: ModelPreset[] = [
   // large MoE entries. active_params is reported inconsistently across
   // secondary sources as ~39B-41B; 41B (TechCrunch) is used here, not an
   // official Mistral figure — treat as approximate.
-  { id: "mistral-large-3", label: "Mistral Large 3 675B-A41B (MoE)", params: 675.0e9, active_params: 41.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 192 },
+  { id: "mistral-large-3", label: "Mistral Large 3 675B-A41B (MoE)", params: 675.0e9, active_params: 41.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 192, num_experts: 128, top_k: 4 },
   // MiniMax-M1's real architecture is a hybrid: Lightning (linear) attention
   // on 7 of every 8 layers, softmax attention on the 8th — this engine's
   // single-attention-type model can't represent that mix, so it's
   // approximated as uniform GQA (same simplification tier as Kimi K3 below).
   // Weights-VRAM math (the dominant cost at this scale) is accurate; only
   // the KV-cache portion is a simplification.
-  { id: "minimax-m1", label: "MiniMax-M1 456B-A45.9B (MoE, hybrid-attention approx.)", params: 456.0e9, active_params: 45.9e9, num_layers: 80, hidden_dim: 6144, num_heads: 64, head_dim: 128, num_kv_heads: 8 },
+  { id: "minimax-m1", label: "MiniMax-M1 456B-A45.9B (MoE, hybrid-attention approx.)", params: 456.0e9, active_params: 45.9e9, num_layers: 80, hidden_dim: 6144, num_heads: 64, head_dim: 128, num_kv_heads: 8, num_experts: 32, top_k: 2 },
   // MiniMax-M2 (MiniMaxAI/MiniMax-M2 on HF, config.json) — unlike M1 above,
   // M2 uses standard GQA throughout (no hybrid linear-attention layers), so
   // this is a clean, non-approximated entry.
-  { id: "minimax-m2", label: "MiniMax-M2 230B-A10B (MoE)", params: 230.0e9, active_params: 10.0e9, num_layers: 62, hidden_dim: 3072, num_heads: 48, head_dim: 128, num_kv_heads: 8 },
+  { id: "minimax-m2", label: "MiniMax-M2 230B-A10B (MoE)", params: 230.0e9, active_params: 10.0e9, num_layers: 62, hidden_dim: 3072, num_heads: 48, head_dim: 128, num_kv_heads: 8, num_experts: 256, top_k: 8 },
 
   // MoE + MLA — `kv_latent_dim` replaces the head-count KV formula with DeepSeek-V3's compressed latent.
-  { id: "deepseek-v3", label: "DeepSeek-V3 671B-A37B (MoE+MLA)", params: 671.0e9, active_params: 37.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576 },
-  { id: "deepseek-r1", label: "DeepSeek-R1 671B-A37B (MoE+MLA)", params: 671.0e9, active_params: 37.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576 },
+  { id: "deepseek-v3", label: "DeepSeek-V3 671B-A37B (MoE+MLA)", params: 671.0e9, active_params: 37.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576, num_experts: 256, top_k: 8 },
+  { id: "deepseek-r1", label: "DeepSeek-R1 671B-A37B (MoE+MLA)", params: 671.0e9, active_params: 37.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576, num_experts: 256, top_k: 8 },
+
   // DeepSeek-V4.1-Flash (deepseek-ai/DeepSeek-V4.1-Flash on HF, + DeepSeek's
   // own announcement) uses a new Causal Encoder-Decoder (CED) architecture —
   // 40 layers split 20 encoder / 20 decoder — rather than the decoder-only
@@ -724,8 +739,8 @@ export const MODEL_PRESETS: ModelPreset[] = [
   // conditional-memory module DeepSeek describes, which has no field in
   // this schema, so actual resident VRAM for this model runs higher than
   // this preset's weights-VRAM math implies.
-  { id: "deepseek-v4.1-flash", label: "DeepSeek-V4.1-Flash 552B-A16B (MoE, CED approx.)", params: 552.0e9, active_params: 16.0e9, num_layers: 40, hidden_dim: 5120, num_heads: 64, head_dim: 128, kv_latent_dim: 576 },
-  { id: "kimi-k2", label: "Kimi K2 1T-A32B (MoE+MLA)", params: 1000.0e9, active_params: 32.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576 },
+  { id: "deepseek-v4.1-flash", label: "DeepSeek-V4.1-Flash 552B-A16B (MoE, CED approx.)", params: 552.0e9, active_params: 16.0e9, num_layers: 40, hidden_dim: 5120, num_heads: 64, head_dim: 128, kv_latent_dim: 576, num_experts: 384, top_k: 6 },
+  { id: "kimi-k2", label: "Kimi K2 1T-A32B (MoE+MLA)", params: 1000.0e9, active_params: 32.0e9, num_layers: 61, hidden_dim: 7168, num_heads: 128, head_dim: 128, kv_latent_dim: 576, num_experts: 384, top_k: 8 },
   // Kimi K3's real published config (moonshotai/Kimi-K3) is a hybrid of 69
   // linear-attention "KDA" layers + 24 gated-MLA layers across 93 layers,
   // 896 experts (16 active) — a mix this engine's single-attention-type
@@ -735,7 +750,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
   // cleanly confirmed. params/active_params/layers/hidden_dim/heads are
   // from the real published config, so weights-VRAM math (the dominant
   // cost) is accurate — only the KV-cache portion is a simplification.
-  { id: "kimi-k3", label: "Kimi K3 2.8T-A104B (MoE+MLA)", params: 2800.0e9, active_params: 104.0e9, num_layers: 93, hidden_dim: 7168, num_heads: 96, head_dim: 128, kv_latent_dim: 576 },
+  { id: "kimi-k3", label: "Kimi K3 2.8T-A104B (MoE+MLA)", params: 2800.0e9, active_params: 104.0e9, num_layers: 93, hidden_dim: 7168, num_heads: 96, head_dim: 128, kv_latent_dim: 576, num_experts: 896, top_k: 16 },
 
   // Closed-weight frontier models — the vendor has never disclosed architecture
   // (layer count, hidden dim, head count) for these, unlike every entry above,

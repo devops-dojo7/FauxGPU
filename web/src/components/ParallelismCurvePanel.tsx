@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { calculateCost } from "@/lib/api";
 import { ModelShape, TopologyRequest } from "@/lib/types";
+import { isMoe } from "@/lib/simEngine";
 import { Card } from "./ui";
 import { LineChart, LineSeries } from "./LineChart";
 
@@ -18,6 +19,7 @@ export function ParallelismCurvePanel({
   seqLen,
   numMicrobatches,
   ppDegree,
+  epDegree,
 }: {
   model: ModelShape;
   topology: TopologyRequest;
@@ -28,6 +30,7 @@ export function ParallelismCurvePanel({
   seqLen: number;
   numMicrobatches: number;
   ppDegree: number;
+  epDegree: number;
 }) {
   const [series, setSeries] = useState<LineSeries[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -48,6 +51,7 @@ export function ParallelismCurvePanel({
           utilization,
           tp_degree: tp,
           pp_degree: ppDegree,
+          ep_degree: epDegree,
           batch_size: batchSize,
           seq_len: seqLen,
           num_microbatches: numMicrobatches,
@@ -71,12 +75,15 @@ export function ParallelismCurvePanel({
         setSeries([
           { label: "Compute", color: "#3b82f6", points: ok.map(({ tp, r }) => ({ x: tp, y: r!.compute_s_per_step * 1000 })) },
           { label: "TP comm (NVLink)", color: "#ec4899", points: ok.map(({ tp, r }) => ({ x: tp, y: r!.tp_communication_s_per_step * 1000 })) },
+          ...(isMoe(model) && epDegree > 1
+            ? [{ label: "EP comm (NVLink)", color: "#a855f7", points: ok.map(({ tp, r }) => ({ x: tp, y: r!.expert_communication_s_per_step * 1000 })) }]
+            : []),
           { label: "Total step time", color: "#10b981", points: ok.map(({ tp, r }) => ({ x: tp, y: r!.total_s_per_step * 1000 })) },
         ]);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [model, topology, precision, tokensPerStep, utilization, batchSize, seqLen, numMicrobatches, ppDegree]);
+  }, [model, topology, precision, tokensPerStep, utilization, batchSize, seqLen, numMicrobatches, ppDegree, epDegree]);
 
   return (
     <Card title="Step time vs. tensor parallel degree">
@@ -84,6 +91,7 @@ export function ParallelismCurvePanel({
         Sweeping TP degree at the current batch/sequence length: compute time drops ~linearly as matmuls split
         across more GPUs, but the per-layer NVLink activation all-reduce grows — the crossover is where adding more
         TP stops paying off.
+        {isMoe(model) && epDegree > 1 && " EP comm (fixed at the current EP degree) is layered on top, unaffected by the TP sweep."}
       </p>
       {error && <p className="text-sm text-error">{error}</p>}
       {series && !error && (

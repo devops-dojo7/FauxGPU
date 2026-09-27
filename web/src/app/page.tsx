@@ -84,6 +84,7 @@ export default function Home() {
     utilization: 0.35,
     tpDegree: 1,
     ppDegree: 1,
+    epDegree: 1,
     batchSize: 4,
     seqLen: 2048,
     numMicrobatches: 1,
@@ -146,8 +147,12 @@ export default function Home() {
     if (shared.modelState) setModelState((prev) => ({ ...prev, ...shared.modelState }));
     if (shared.gpuId) setGpuId(shared.gpuId);
     if (shared.topoState) setTopoState(shared.topoState);
-    if (shared.costInputs) setCostInputs(shared.costInputs);
-    if (shared.inferenceInputs) setInferenceInputs(shared.inferenceInputs);
+    // Same merge-not-replace treatment as modelState above — costInputs/
+    // inferenceInputs get new fields over time too (e.g. epDegree, added
+    // alongside expert parallelism), so a link encoded before that field
+    // existed must not leave it undefined in React state.
+    if (shared.costInputs) setCostInputs((prev) => ({ ...prev, ...shared.costInputs }));
+    if (shared.inferenceInputs) setInferenceInputs((prev) => ({ ...prev, ...shared.inferenceInputs }));
   }, []);
 
   const shareConfig = () => {
@@ -209,6 +214,7 @@ export default function Home() {
       utilization: costInputs.utilization,
       tp_degree: costInputs.tpDegree,
       pp_degree: costInputs.ppDegree,
+      ep_degree: costInputs.epDegree,
       batch_size: costInputs.batchSize,
       seq_len: costInputs.seqLen,
       num_microbatches: costInputs.numMicrobatches,
@@ -330,6 +336,7 @@ export default function Home() {
                 error={costError}
                 numGpus={numGpus}
                 pricePerHr={gpu?.price_per_hr_usd ?? 0}
+                model={modelState.model}
                 spotState={spotInputs}
                 onSpotChange={setSpotInputs}
               />
@@ -366,6 +373,7 @@ export default function Home() {
                 seqLen={costInputs.seqLen}
                 numMicrobatches={costInputs.numMicrobatches}
                 ppDegree={costInputs.ppDegree}
+                epDegree={costInputs.epDegree}
               />
             </div>
           </div>

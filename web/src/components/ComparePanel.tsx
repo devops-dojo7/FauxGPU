@@ -240,6 +240,7 @@ export function ComparePanel({
               utilization: costInputs.utilization,
               tp_degree: costInputs.tpDegree,
               pp_degree: costInputs.ppDegree,
+              ep_degree: costInputs.epDegree,
               batch_size: costInputs.batchSize,
               seq_len: costInputs.seqLen,
               num_microbatches: costInputs.numMicrobatches,

@@ -22,6 +22,7 @@ from engine.topology import ClusterTopology, build_topology
 _DP_GPU_COUNTS = (1, 2, 4, 8, 16, 32, 64)
 _TP_DEGREES = (1, 2, 4, 8)
 _PP_DEGREES = (1, 2, 4)
+_EP_DEGREES = (1, 2, 4, 8)
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,7 @@ class RecommendationCandidate:
     num_gpus: int
     tp_degree: int
     pp_degree: int
+    ep_degree: int
     total_cost_usd: float
     total_time_hours: float
     cost_per_1k_tokens_usd: float
@@ -38,19 +40,29 @@ class RecommendationCandidate:
     vram_headroom_gb: float
 
 
-def _sharded_model(model: ModelShape, tp_degree: int, pp_degree: int) -> ModelShape:
-    """Approximate per-GPU shape after tensor + pipeline sharding: pipeline
-    parallelism splits layers across stages, tensor parallelism further
-    splits each layer's matmul weights — modeled here as dividing params
-    (and active_params) by the combined shard factor while also reducing
+def _sharded_model(model: ModelShape, tp_degree: int, pp_degree: int, ep_degree: int = 1) -> ModelShape:
+    """Approximate per-GPU shape after tensor + pipeline (+ expert) sharding:
+    pipeline parallelism splits layers across stages, tensor parallelism
+    further splits each layer's matmul weights, and expert parallelism
+    splits an MoE model's routed-expert pool across ranks — modeled here as
+    dividing params by the combined shard factor while also reducing
     num_layers by pp_degree, so both the weight/optimizer/gradient VRAM and
     the activation VRAM (which scales with num_layers) shrink accordingly.
+
+    active_params is divided by tp_degree*pp_degree only, not ep_degree:
+    TP/PP genuinely reduce the FLOPs/bytes touched per token on a given GPU
+    (fewer matmul columns, fewer layers), but EP doesn't — every GPU still
+    computes its share of the tokens routed to it, through whichever
+    experts happen to live there; only the *resident* expert weight count
+    (params, which is what weights/gradients/optimizer-state VRAM scales
+    with) shrinks as the pool is split across more ranks.
+
     A simplification, same tier as the rest of this teaching-tool's formulas.
     """
     shard = tp_degree * pp_degree
     layers_per_stage = max(1, model.num_layers // pp_degree)
     return ModelShape(
-        params=model.params / shard,
+        params=model.params / (shard * max(ep_degree, 1)),
         num_layers=layers_per_stage,
         hidden_dim=model.hidden_dim,
         num_heads=model.num_heads,
@@ -58,6 +70,8 @@ def _sharded_model(model: ModelShape, tp_degree: int, pp_degree: int) -> ModelSh
         num_kv_heads=model.num_kv_heads,
         active_params=(model.active_params / shard) if model.active_params is not None else None,
         kv_latent_dim=model.kv_latent_dim,
+        num_experts=model.num_experts,
+        top_k=model.top_k,
     )
 
 
@@ -99,62 +113,80 @@ def recommend_configurations(
         gpus = [g for g in list_gpus() if g.price_per_hr_usd > 0]
 
     candidates: list[RecommendationCandidate] = []
+    # EP only matters for MoE models — searching ep_degree > 1 for a dense
+    # model would just multiply total_gpus for zero benefit (expert_all_to_all_seconds
+    # is a no-op without num_experts/top_k), so keep dense models at ep_degree=1.
+    ep_degrees = _EP_DEGREES if model.uses_expert_parallelism else (1,)
     for gpu in gpus:
         for tp_degree in _TP_DEGREES:
             if tp_degree > 1 and gpu.nvlink_gbps is None:
                 continue  # TP needs NVLink — engine.parallelism already models this as infinite time
             for pp_degree in _PP_DEGREES:
-                per_gpu_model = _sharded_model(model, tp_degree, pp_degree)
-                vram = compute_vram_breakdown(per_gpu_model, precision, batch_size, seq_len, training=True)
-                if vram.total_gb > gpu.vram_gb:
-                    continue  # doesn't fit even before adding DP replicas
+                for ep_degree in ep_degrees:
+                    if ep_degree > 1 and gpu.nvlink_gbps is None:
+                        continue  # EP's all-to-all needs NVLink too — same guard as TP above
 
-                for dp_gpus in _DP_GPU_COUNTS:
-                    total_gpus = dp_gpus * tp_degree * pp_degree
-                    if total_gpus > max_gpus:
-                        continue
-                    try:
-                        topo = _topology_for_dp_gpus(gpu.id, dp_gpus)
-                    except ValueError:
-                        continue  # e.g. nvlink_node requested for a GPU with no NVLink
+                    # VRAM feasibility depends on ep_degree too (it shards
+                    # resident expert weights, same as tp_degree/pp_degree
+                    # shard the rest) — checked per ep_degree, not hoisted
+                    # above this loop, so a model that only fits *with*
+                    # expert sharding (e.g. DeepSeek-V3's 671B total params
+                    # at ep_degree=1 exceeds every GPU's VRAM) still gets a
+                    # chance at higher ep_degree instead of being excluded
+                    # before EP is ever tried.
+                    per_gpu_model = _sharded_model(model, tp_degree, pp_degree, ep_degree)
+                    vram = compute_vram_breakdown(per_gpu_model, precision, batch_size, seq_len, training=True)
+                    if vram.total_gb > gpu.vram_gb:
+                        continue  # doesn't fit even before adding DP replicas
 
-                    step = estimate_parallel_step_time(
-                        model,
-                        topo,
-                        tokens_per_step=tokens_per_step,
-                        precision=precision,
-                        utilization=utilization,
-                        tp_degree=tp_degree,
-                        pp_degree=pp_degree,
-                        batch_size=batch_size,
-                        seq_len=seq_len,
-                        num_microbatches=num_microbatches,
-                    )
-                    if step.total_s == float("inf"):
-                        continue
+                    for dp_gpus in _DP_GPU_COUNTS:
+                        total_gpus = dp_gpus * tp_degree * pp_degree * ep_degree
+                        if total_gpus > max_gpus:
+                            continue
+                        try:
+                            topo = _topology_for_dp_gpus(gpu.id, dp_gpus)
+                        except ValueError:
+                            continue  # e.g. nvlink_node requested for a GPU with no NVLink
 
-                    cost = estimate_training_cost(
-                        topo, step, tokens_per_step, total_training_tokens, total_gpus_override=step.total_gpus
-                    )
-                    if budget_usd is not None and cost.total_cost_usd > budget_usd:
-                        continue
-                    if max_time_hours is not None and cost.total_time_hours > max_time_hours:
-                        continue
-
-                    candidates.append(
-                        RecommendationCandidate(
-                            gpu_id=gpu.id,
-                            gpu_name=gpu.name,
-                            num_gpus=step.total_gpus,
+                        step = estimate_parallel_step_time(
+                            model,
+                            topo,
+                            tokens_per_step=tokens_per_step,
+                            precision=precision,
+                            utilization=utilization,
                             tp_degree=tp_degree,
                             pp_degree=pp_degree,
-                            total_cost_usd=cost.total_cost_usd,
-                            total_time_hours=cost.total_time_hours,
-                            cost_per_1k_tokens_usd=cost.cost_per_1k_tokens_usd,
-                            vram_per_gpu_gb=vram.total_gb,
-                            vram_headroom_gb=gpu.vram_gb - vram.total_gb,
+                            ep_degree=ep_degree,
+                            batch_size=batch_size,
+                            seq_len=seq_len,
+                            num_microbatches=num_microbatches,
                         )
-                    )
+                        if step.total_s == float("inf"):
+                            continue
+
+                        cost = estimate_training_cost(
+                            topo, step, tokens_per_step, total_training_tokens, total_gpus_override=step.total_gpus
+                        )
+                        if budget_usd is not None and cost.total_cost_usd > budget_usd:
+                            continue
+                        if max_time_hours is not None and cost.total_time_hours > max_time_hours:
+                            continue
+
+                        candidates.append(
+                            RecommendationCandidate(
+                                gpu_id=gpu.id,
+                                gpu_name=gpu.name,
+                                num_gpus=step.total_gpus,
+                                tp_degree=tp_degree,
+                                pp_degree=pp_degree,
+                                ep_degree=ep_degree,
+                                total_cost_usd=cost.total_cost_usd,
+                                total_time_hours=cost.total_time_hours,
+                                cost_per_1k_tokens_usd=cost.cost_per_1k_tokens_usd,
+                                vram_per_gpu_gb=vram.total_gb,
+                                vram_headroom_gb=gpu.vram_gb - vram.total_gb,
+                            )
+                        )
 
     candidates.sort(key=lambda c: c.total_cost_usd if objective == "cost" else c.total_time_hours)
     return candidates[:max_results]

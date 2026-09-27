@@ -32,7 +32,7 @@ def bytes_per_param(precision: str) -> float:
 class ModelShape:
     """Minimal transformer shape needed for the memory/compute formulas.
 
-    Three optional fields cover attention/MoE variants beyond plain
+    Four optional fields cover attention/MoE variants beyond plain
     multi-head attention (MHA) dense models — each defaults to the MHA/dense
     behavior when left unset, so existing presets don't need to change:
 
@@ -49,6 +49,16 @@ class ModelShape:
       shared latent vector per token per layer instead of per-head K/V
       tensors, which is a fundamentally different KV cache formula. None =
       use the standard (GQA/MHA) head-count-based KV cache formula.
+    - num_experts/top_k: for MoE models, the router's total expert pool
+      size and how many experts each token is dispatched to (Shazeer et
+      al. 2017; GShard, Lepikhin et al. 2020's top-2; Switch Transformer,
+      Fedus et al. 2022's top-1). Needed only for
+      engine.parallelism.expert_all_to_all_seconds' communication model
+      when experts are sharded across GPUs (expert parallelism) — active_params
+      alone is enough for the VRAM/FLOPs formulas above. None = not
+      modeled as expert-parallel (e.g. a dense model, or an MoE model
+      whose experts are simply replicated like any other DP-sharded
+      weight rather than split across ranks).
     """
 
     params: float  # total parameter count (all experts, if MoE)
@@ -59,6 +69,8 @@ class ModelShape:
     num_kv_heads: int | None = None
     active_params: float | None = None
     kv_latent_dim: int | None = None
+    num_experts: int | None = None
+    top_k: int | None = None
 
     @property
     def effective_kv_heads(self) -> int:
@@ -75,6 +87,10 @@ class ModelShape:
     @property
     def uses_mla(self) -> bool:
         return self.kv_latent_dim is not None
+
+    @property
+    def uses_expert_parallelism(self) -> bool:
+        return self.num_experts is not None and self.top_k is not None
 
 
 @dataclass(frozen=True)

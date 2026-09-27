@@ -5,6 +5,121 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-27
+
+MoE expert parallelism — the last major distributed-training mechanism
+(alongside DP/TP/PP/ZeRO) this simulator didn't yet model, and the one this
+project's own 22-preset MoE catalog (Mixtral, DeepSeek-V3/R1, Qwen3-MoE,
+gpt-oss, Llama 4, GLM-4.5, Kimi K2/K3, and others) had no way to represent
+the real communication cost of at all.
+
+### Added
+
+- **`ModelShape`'s new `num_experts`/`top_k` fields** (both optional, `None`
+  = not modeled as expert-parallel, same convention as `kv_latent_dim`/
+  `num_kv_heads` before it) record an MoE model's router config: total
+  routed-expert pool size and how many experts each token is dispatched to
+  (Shazeer et al. 2017; GShard, Lepikhin et al. 2020's top-2; Switch
+  Transformer, Fedus et al. 2022's top-1). A new `uses_expert_parallelism`
+  property is `True` only when both are set.
+- **`engine.parallelism.expert_all_to_all_seconds`** models the dispatch +
+  combine all-to-all pair every MoE layer needs when its expert pool is
+  sharded across ranks (GShard, https://arxiv.org/abs/2006.16668; Switch
+  Transformer, https://arxiv.org/abs/2101.03961) — described in the
+  literature as "the defining cost of distributed MoE". Payload per
+  all-to-all: `tokens_per_step * top_k * hidden_dim * bytes_per_param`,
+  doubled for dispatch+combine and again for forward+backward, over
+  NVLink (an `ep_degree > 1` all-to-all on a GPU with no NVLink is modeled
+  as infeasible — infinite time — the same convention `tensor_parallel_
+  communication_seconds` already uses for TP). A no-op (0 added time) for
+  any model with no `num_experts`/`top_k` set, regardless of `ep_degree`.
+- **`engine.parallelism.estimate_parallel_step_time`'s new `ep_degree`
+  parameter** wires expert communication into the existing TP/PP/ZeRO/PEFT
+  step-time breakdown, orthogonal to all of them, contributing a new
+  `expert_communication_s` field to `ParallelStepTimeBreakdown`. Correctly
+  leaves `total_gpus` (and therefore GPU-hours and cost) unmultiplied by
+  `ep_degree` for a model that doesn't actually use expert parallelism —
+  see Fixed, below.
+- **`engine.recommend.recommend_configurations`** now searches `ep_degree`
+  (1/2/4/8) as a fourth dimension alongside GPU type/count and TP/PP degree
+  for any model with `num_experts`/`top_k` set, and applies expert sharding
+  to the per-GPU VRAM feasibility check the same way TP/PP sharding already
+  was — see Fixed, below, for why this matters for real MoE-scale models.
+  Dense models are left at `ep_degree=1` only, since searching it would
+  just multiply candidate GPU counts for zero benefit.
+- Wired into `POST /calculate/cost` (`ep_degree` request field,
+  `expert_communication_s_per_step` response field, and the same
+  NVLink-infeasibility error message pattern TP already uses) and
+  `POST /calculate/recommend` (`ep_degree` on every `RecommendationCandidate`).
+  `ModelShapeIn`'s new `num_experts`/`top_k` fields thread through every
+  endpoint that accepts a model shape.
+- 22 of this project's real MoE catalog presets (Mixtral 8x7B/8x22B, DBRX,
+  gpt-oss-20b/120b, Llama 4 Scout/Maverick, Grok-1, Qwen3-30B-A3B/235B-A22B,
+  GLM-4.5/-Air, Mistral Large 3, MiniMax-M1/M2, DeepSeek-V3/R1/V4.1-Flash,
+  Kimi K2/K3) now carry real `num_experts`/`top_k` values sourced from each
+  model's own published HuggingFace `config.json` (or, for Llama 4 and
+  Grok-1, the vendor's own architecture blog post / released source —
+  Meta's Llama 4 announcement, xAI's `grok-1` GitHub release) rather than
+  invented numbers — see each preset's inline sourcing comment in
+  `web/src/lib/types.ts`. Web UI: an "Expert parallel (EP)" input next to
+  the existing TP/PP controls (shown only for MoE model presets), EP
+  breakdown text in the step-time stat, an EP column in the Recommender's
+  ranked-candidates table (shown only when the selected model is MoE), and
+  an EP communication series on the TP-degree sweep chart.
+
+### Fixed
+
+- **`engine.recommend.recommend_configurations`'s per-GPU VRAM feasibility
+  check didn't account for `ep_degree` at all** — it was computed once per
+  TP/PP combination, before the (later-added) `ep_degree` search loop even
+  ran, using a per-GPU model shape whose resident param count was only
+  divided by `tp_degree * pp_degree`. For a large-enough MoE model this is
+  a real, user-visible bug, not a rounding error: DeepSeek-V3's 671B total
+  params need ~42GB/GPU for weights alone at TP8xPP4 (ep_degree=1), and
+  ~383GB/GPU once gradients + Adam optimizer state for a full-parameter
+  run are included — more than every real, obtainable GPU in this
+  project's own catalog (256GB, MI325X) — so `recommend_configurations`
+  returned **zero candidates** for DeepSeek-V3, Kimi K2/K3, and any other
+  large enough MoE preset, regardless of `max_gpus`, silently defeating
+  the entire point of adding expert parallelism for exactly the flagship
+  models it targets. Fixed by moving the VRAM check inside the `ep_degree`
+  loop and dividing resident `params` by `ep_degree` too (not
+  `active_params`, which drives per-token compute and isn't reduced by
+  *where* an expert's weights happen to live) — confirmed via a real HTTP
+  call to `POST /calculate/recommend` with DeepSeek-V3's real published
+  config, before (0 candidates) and after (10 feasible candidates, e.g.
+  64 GB300 GPUs at TP8xPP4xEP2, ~$21.8M/~105K hours for 1e12 tokens) the
+  fix.
+- **`estimate_parallel_step_time`'s `total_gpus` was multiplied by
+  `ep_degree` unconditionally**, even for a model with no
+  `num_experts`/`top_k` set — so a dense model requesting `ep_degree=8`
+  silently got billed for 8x the GPUs (and 8x the training cost) for a
+  mechanism `expert_all_to_all_seconds` itself correctly treats as a
+  complete no-op (0 added communication time). Confirmed via a real HTTP
+  call to `POST /calculate/cost` with a plain Llama-2 7B shape: `ep_degree=8`
+  returned `total_gpus: 64` and a cost of $210,027 before the fix, both
+  identical to `ep_degree=1`'s correct $210,027/8-GPU answer after it.
+
+Verified against each cited paper's own architecture description (GShard's
+dispatch+combine all-to-all cost, Switch Transformer's top-1 routing) and
+against every MoE preset's own published router config (HuggingFace
+`config.json`'s `num_local_experts`/`num_experts_per_tok` or equivalent
+field names, fetched directly rather than estimated) for Mixtral 8x7B/8x22B,
+Qwen3-30B-A3B/235B-A22B, gpt-oss-20b/120b, DBRX, Llama 4 Scout/Maverick,
+Grok-1, GLM-4.5/-Air, Mistral Large 3, MiniMax-M1/M2, DeepSeek-V3,
+DeepSeek-V4.1-Flash, Kimi K2/K3. A real HTTP sweep of all 20 MoE presets
+across `/calculate/cost` (with `ep_degree=8`), `/calculate/vram`, and
+`/calculate/recommend` came back error-free, with every preset's
+`/calculate/recommend` call returning at least one feasible candidate
+(previously zero for the largest models, per the Fixed section above). 13
+new pytest tests (3 for MoE-aware recommend search/VRAM-feasibility, 1
+regression test for the dense-model `total_gpus` bug, the rest for
+`expert_all_to_all_seconds`' formula and its wiring into
+`estimate_parallel_step_time`); full suite green (310 tests, one unrelated
+pre-existing timing flake in `test_runs_store.py`, same one noted since
+0.4.0). `tsc --noEmit`, `eslint`, and `next build` all clean on every
+touched web file.
+
 ## [0.5.0] - 2026-09-27
 
 LoRA/QLoRA parameter-efficient fine-tuning — the other reason (besides

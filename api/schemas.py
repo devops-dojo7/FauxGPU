@@ -15,6 +15,8 @@ class ModelShapeIn(BaseModel):
     num_kv_heads: int | None = Field(None, description="GQA KV head count; omit for MHA (num_kv_heads == num_heads)")
     active_params: float | None = Field(None, description="MoE active param count per token; omit for dense models")
     kv_latent_dim: int | None = Field(None, description="MLA compressed KV latent dim per layer; omit for GQA/MHA")
+    num_experts: int | None = Field(None, description="MoE total routed-expert count; omit for dense/non-EP models")
+    top_k: int | None = Field(None, description="MoE experts routed to per token; omit for dense/non-EP models")
 
 
 class VramRequest(BaseModel):
@@ -80,6 +82,16 @@ class CostRequest(BaseModel):
     utilization: float = 0.35
     tp_degree: int = 1
     pp_degree: int = 1
+    ep_degree: int = Field(
+        1,
+        ge=1,
+        description=(
+            "Expert-parallel degree: shards an MoE model's expert pool across this many ranks, "
+            "each needing a dispatch+combine all-to-all per MoE layer. A no-op for models with no "
+            "num_experts/top_k set (dense models), regardless of this value — see "
+            "engine.parallelism.expert_all_to_all_seconds."
+        ),
+    )
     batch_size: int = 1
     seq_len: int = 2048
     num_microbatches: int = 1
@@ -115,6 +127,7 @@ class CostResponse(BaseModel):
     communication_s_per_step: float
     tp_communication_s_per_step: float
     pipeline_bubble_s_per_step: float
+    expert_communication_s_per_step: float
     total_s_per_step: float
     total_gpus: int
     total_steps: int
@@ -228,6 +241,7 @@ class RecommendationCandidateOut(BaseModel):
     num_gpus: int
     tp_degree: int
     pp_degree: int
+    ep_degree: int
     total_cost_usd: float
     total_time_hours: float
     cost_per_1k_tokens_usd: float

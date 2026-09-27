@@ -81,6 +81,7 @@ def calculate_cost(req: CostRequest):
             utilization=req.utilization,
             tp_degree=req.tp_degree,
             pp_degree=req.pp_degree,
+            ep_degree=req.ep_degree,
             batch_size=req.batch_size,
             seq_len=req.seq_len,
             num_microbatches=req.num_microbatches,
@@ -90,14 +91,17 @@ def calculate_cost(req: CostRequest):
             peft_target_modules=req.peft_target_modules,
         )
         if step.total_s == float("inf"):
-            raise ValueError(
-                f"Tensor parallelism (TP={req.tp_degree}) needs NVLink, but {topo.gpu.name} has none."
-            )
+            reason = "Tensor parallelism" if req.tp_degree > 1 else "Expert parallelism"
+            degree = req.tp_degree if req.tp_degree > 1 else req.ep_degree
+            raise ValueError(f"{reason} (degree={degree}) needs NVLink, but {topo.gpu.name} has none.")
         cost = estimate_training_cost(
             topo, step, req.tokens_per_step, req.total_training_tokens, total_gpus_override=step.total_gpus
         )
         power_per_gpu = training_step_power_watts(
-            topo.gpu, step.compute_s, step.dp_communication_s + step.tp_communication_s + step.pipeline_bubble_s, req.utilization
+            topo.gpu,
+            step.compute_s,
+            step.dp_communication_s + step.tp_communication_s + step.pipeline_bubble_s + step.expert_communication_s,
+            req.utilization,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -114,6 +118,7 @@ def calculate_cost(req: CostRequest):
         communication_s_per_step=step.dp_communication_s,
         tp_communication_s_per_step=step.tp_communication_s,
         pipeline_bubble_s_per_step=step.pipeline_bubble_s,
+        expert_communication_s_per_step=step.expert_communication_s,
         total_s_per_step=step.total_s,
         total_gpus=step.total_gpus,
         total_steps=cost.total_steps,

@@ -16,6 +16,13 @@ for the DP/ring-all-reduce half of this picture):
   hand activations to each other in sequence. The first/last microbatches
   can't overlap with anything, leaving GPUs idle — the "pipeline bubble" —
   shrinking as more microbatches keep the pipeline full.
+- Expert parallelism (EP): MoE models shard their expert pool across GPUs
+  rather than replicating every expert everywhere. Each token's chosen
+  experts may live on a different rank, so every MoE layer needs two
+  all-to-all collectives — "dispatch" (send each token to its expert-
+  owning rank) and "combine" (send the expert's output back) — the
+  defining, distinctively communication-bound cost of distributed MoE
+  training (see engine.parallelism.expert_all_to_all_seconds).
 
 Total GPUs used = topology.total_gpus (the DP replica group) * tp_degree * pp_degree.
 """
@@ -68,17 +75,74 @@ def pipeline_bubble_fraction(pp_degree: int, num_microbatches: int) -> float:
     return (pp_degree - 1) / num_microbatches
 
 
+def expert_all_to_all_seconds(
+    model: ModelShape,
+    tokens_per_step: int,
+    precision: str,
+    ep_degree: int,
+    bandwidth_gbps: float | None,
+    forward_and_backward: bool = True,
+) -> float:
+    """Communication time for MoE expert-parallel token dispatch + combine
+    (Lepikhin et al. 2020, GShard, https://arxiv.org/abs/2006.16668; Fedus
+    et al. 2022, Switch Transformer, https://arxiv.org/abs/2101.03961):
+    every MoE layer routes each token to its top_k chosen experts, which
+    may live on a different EP rank, requiring an all-to-all to send tokens
+    there ("dispatch") and a second all-to-all to send expert outputs back
+    ("combine") — this double all-to-all is described in the literature as
+    "the defining cost of distributed MoE" (see e.g. the GShard-principles
+    summary this project's own docs cite).
+
+    Payload per all-to-all, per MoE layer: tokens_per_step * top_k *
+    hidden_dim * bytes_per_param(precision) — each of a token's top_k
+    routed copies carries one full hidden-dim activation vector. All-to-all
+    (unlike ring all-reduce) sends the *full* payload once per collective,
+    not a (N-1)/N fraction of it, since every rank both sends and receives
+    a real payload rather than passing a partial-reduction result around a
+    ring — see e.g. https://duoan.github.io/posts/moe-expert-parallelism-principles/
+    (dispatch plus combine, "bytes ~= 2 * T * k * H * b").
+
+    ep_degree <= 1 (experts not actually sharded across ranks, e.g. plain
+    DP-replicated experts) returns 0.0 — nothing to route remotely. A model
+    with no num_experts/top_k set (model.uses_expert_parallelism is False)
+    is likewise unaffected regardless of ep_degree, since this project has
+    no way to know its real routing shape. forward_and_backward=True
+    (training's default) accounts for the backward pass needing its own
+    dispatch+combine of activation *gradients* through the same routing
+    pattern; inference-serving call sites (a future addition, not wired up
+    yet) would pass False.
+    """
+    if ep_degree <= 1 or not model.uses_expert_parallelism:
+        return 0.0
+    if not bandwidth_gbps:
+        return float("inf")
+
+    payload_bytes_per_collective = tokens_per_step * model.top_k * model.hidden_dim * bytes_per_param(precision)
+    collectives_per_layer = 2  # dispatch + combine
+    passes = 2 if forward_and_backward else 1
+    total_collectives = model.num_layers * collectives_per_layer * passes
+    bandwidth_bytes_per_sec = bandwidth_gbps * GBPS_TO_BYTES_PER_SEC
+    return (payload_bytes_per_collective * total_collectives) / bandwidth_bytes_per_sec
+
+
 @dataclass(frozen=True)
 class ParallelStepTimeBreakdown:
     compute_s: float
     dp_communication_s: float
     tp_communication_s: float
     pipeline_bubble_s: float
+    expert_communication_s: float
     total_gpus: int
 
     @property
     def total_s(self) -> float:
-        return self.compute_s + self.dp_communication_s + self.tp_communication_s + self.pipeline_bubble_s
+        return (
+            self.compute_s
+            + self.dp_communication_s
+            + self.tp_communication_s
+            + self.pipeline_bubble_s
+            + self.expert_communication_s
+        )
 
 
 def estimate_parallel_step_time(
@@ -89,6 +153,7 @@ def estimate_parallel_step_time(
     utilization: float,
     tp_degree: int = 1,
     pp_degree: int = 1,
+    ep_degree: int = 1,
     batch_size: int = 1,
     seq_len: int = 2048,
     num_microbatches: int = 1,
@@ -111,6 +176,15 @@ def estimate_parallel_step_time(
     tiny LoRA adapter's gradients only) and the per-GPU compute (skipping
     frozen-weight backward-gradient FLOPs) — both orthogonal to
     tp_degree/pp_degree.
+
+    ep_degree > 1 shards an MoE model's expert pool across that many ranks
+    (see expert_all_to_all_seconds) — orthogonal to tp_degree/pp_degree/
+    zero_stage/peft_method the same way TP/PP are, and a no-op (0 added
+    communication) for a model with no num_experts/top_k set, regardless
+    of ep_degree. Uses the NVLink bandwidth like TP's own collective,
+    since EP's all-to-all is likewise normally kept within a fast-
+    interconnect domain rather than spread across the slower inter-node
+    fabric.
     """
     dp_step: StepTimeBreakdown = estimate_step_time(
         model,
@@ -129,11 +203,21 @@ def estimate_parallel_step_time(
     tp_comm_s = tensor_parallel_communication_seconds(
         model, batch_size, seq_len, precision, tp_degree, topology.gpu.nvlink_gbps
     )
+    tokens_per_gpu = max(1, tokens_per_step // topology.total_gpus)
+    ep_comm_s = expert_all_to_all_seconds(model, tokens_per_gpu, precision, ep_degree, topology.gpu.nvlink_gbps)
+    # Only a model that actually uses expert parallelism should have its GPU
+    # count multiplied by ep_degree — for a dense model (or an MoE model
+    # with no num_experts/top_k set), ep_degree > 1 is a no-op exactly like
+    # expert_all_to_all_seconds treats it (0 added communication), so
+    # inflating total_gpus (and therefore total_cost_usd) for zero benefit
+    # would be a real, silently-wrong answer rather than a harmless default.
+    effective_ep_degree = max(ep_degree, 1) if model.uses_expert_parallelism else 1
 
     return ParallelStepTimeBreakdown(
         compute_s=compute_s,
         dp_communication_s=dp_step.communication_s,
         tp_communication_s=tp_comm_s,
         pipeline_bubble_s=bubble_s,
-        total_gpus=topology.total_gpus * tp_degree * pp_degree,
+        expert_communication_s=ep_comm_s,
+        total_gpus=topology.total_gpus * tp_degree * pp_degree * effective_ep_degree,
     )
