@@ -145,9 +145,12 @@ jobs:
         # k3s/helm/simgpu/artifacthub-repo.yml and
         # https://artifacthub.io/docs/topics/repositories/helm-charts/#oci-support.
         # Re-pushed every release since the metadata tag isn't versioned;
-        # harmless no-op when the file's content hasn't changed.
+        # harmless no-op when the file's content hasn't changed. oras needs
+        # its own login (`helm registry login` above writes to Helm's own
+        # credential store, not the docker/oras-shared one).
         run: |
           set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
           oras push \
             "ghcr.io/${NS}/charts/fauxgpu:artifacthub.io" \
             --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
