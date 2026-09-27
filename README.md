@@ -131,7 +131,7 @@ Silicon/ARM node:
 
 ```bash
 k3d cluster create simgpu --agents 2 --wait
-helm install simgpu oci://ghcr.io/devops-dojo7/fauxgpu/charts/simgpu --version 0.2.2
+helm install simgpu oci://ghcr.io/devops-dojo7/fauxgpu/charts/fauxgpu --version 0.2.2
 
 # see the simulated GPU resources show up on every node
 kubectl describe nodes | grep -A5 simgpu.dev/gpu
@@ -166,6 +166,15 @@ manually with a version input) and the workflow builds, pushes, and
 publishes everything for that version. Note the first publish under a new
 image/chart name lands as a **private** GHCR package — flip it to public
 once in that package's GHCR settings, or it won't pull anonymously.
+
+The chart is also intended to be listed on [Artifact Hub](https://artifacthub.io)
+as `fauxgpu` (`Chart.yaml`'s `name`, kept distinct from this repo's internal
+`k3s/helm/simgpu` path/`helm install simgpu` release name) — add
+`oci://ghcr.io/devops-dojo7/fauxgpu/charts/fauxgpu` as a Helm charts
+repository from the Artifact Hub control panel to list it there; the
+release workflow already pushes `k3s/helm/simgpu/artifacthub-repo.yml`'s
+metadata alongside each chart version to support the Verified Publisher /
+ownership-claim flow once that's done (see [Artifact Hub's OCI repositories docs](https://artifacthub.io/docs/topics/repositories/helm-charts/#oci-support)).
 
 ### Build the images yourself
 

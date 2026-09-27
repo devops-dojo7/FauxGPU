@@ -29,6 +29,19 @@ Makes the Helm chart installable with zero local builds, and its
 - README's "Deploy the fake-GPU K8s layer" now leads with the published-image
   install (no build step); the from-source `docker build`/`k3d image import`
   walkthrough moved to its own "Build the images yourself" subsection.
+- **Chart renamed `simgpu` → `fauxgpu`** (the source directory stays
+  `k3s/helm/simgpu` for history/link stability, only `Chart.yaml`'s `name`
+  changed) so it's listed on [Artifact Hub](https://artifacthub.io) under
+  the project's actual name rather than its internal codename. The
+  published OCI ref moves to
+  `oci://ghcr.io/devops-dojo7/fauxgpu/charts/fauxgpu`; the Helm release name
+  (`helm install simgpu ...`) and every deployed resource name
+  (`simgpu-api`, `simgpu-web`, etc.) are unaffected — those come from the
+  release name and hardcoded template names, not the chart name. Also adds
+  full `Chart.yaml` metadata (icon, keywords, maintainers, links) and
+  `k3s/helm/simgpu/artifacthub-repo.yml` (pushed to the OCI registry by the
+  release workflow) for Artifact Hub's Verified Publisher / ownership-claim
+  flow.
 
 ### Fixed
 

@@ -1,6 +1,42 @@
 apiVersion: v2
-name: simgpu
-description: Simulated GPU cluster for learning K8s GPU scheduling and distributed training mechanics
+name: fauxgpu
+description: >-
+  Simulate a real GPU datacenter with zero GPUs — real Kubernetes GPU-resource
+  scheduling (a fake device-plugin or run-ai/fake-gpu-operator), a real
+  training/inference API and Next.js UI, and a real Prometheus/Grafana/
+  Langfuse observability stack, so anyone can learn distributed
+  training/inference internals and GPU-datacenter operations on a laptop.
 type: application
 version: 0.2.2
 appVersion: "0.2.2"
+home: https://devops-dojo7.github.io/FauxGPU/
+icon: https://raw.githubusercontent.com/devops-dojo7/FauxGPU/main/assets/logo.png
+sources:
+  - https://github.com/devops-dojo7/FauxGPU
+keywords:
+  - gpu
+  - kubernetes
+  - simulation
+  - machine-learning
+  - llm
+  - training
+  - inference
+  - observability
+  - education
+maintainers:
+  - name: kumailr7
+    email: kumailrizvi70@gmail.com
+    url: https://github.com/kumailr7
+annotations:
+  # Artifact Hub-specific metadata (https://artifacthub.io/docs/topics/annotations/helm/).
+  # `artifacthub.io/images` is deliberately omitted: this chart's values.yaml
+  # already resolves every component to a real, fully-qualified image
+  # reference (see templates/_helpers.tpl's simgpu.image), so Artifact Hub's
+  # dry-run-install auto-detection finds all five images correctly without a
+  # manually-pinned, easy-to-drift duplicate list here.
+  artifacthub.io/license: MIT
+  artifacthub.io/links: |
+    - name: Website / demo
+      url: https://devops-dojo7.github.io/FauxGPU/
+    - name: source
+      url: https://github.com/devops-dojo7/FauxGPU

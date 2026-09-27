@@ -1,0 +1,22 @@
+# Artifact Hub repository metadata for this chart's OCI repo
+# (oci://ghcr.io/devops-dojo7/fauxgpu/charts/fauxgpu), pushed as its own OCI
+# artifact under the special `artifacthub.io` tag by
+# .github/workflows/release.yml's "Publish Artifact Hub metadata" step — see
+# https://artifacthub.io/docs/topics/repositories/helm-charts/#oci-support.
+#
+# `owners` enables the Ownership Claim flow
+# (https://artifacthub.io/docs/topics/repositories/#ownership-claim): after
+# adding this repo to Artifact Hub the first time (Control panel > Add
+# repository > Kind "Helm charts" > URL
+# oci://ghcr.io/devops-dojo7/fauxgpu/charts/fauxgpu), sign in with an account
+# using kumailrizvi70@gmail.com and use "Claim ownership" to take over as
+# publisher.
+#
+# repositoryID enables the Verified Publisher badge once set — copy it from
+# this repository's card in the Artifact Hub control panel after it's been
+# added, then commit it here so the next release republishes this file with
+# it filled in.
+# repositoryID: ""
+owners:
+  - name: kumailr7
+    email: kumailrizvi70@gmail.com
