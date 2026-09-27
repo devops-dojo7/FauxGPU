@@ -89,3 +89,21 @@ def test_lora_checkpoint_matches_raw_adapter_param_count():
     adapter_params = lora_trainable_params(LLAMA2_7B, rank, target_modules)
     size_gb = checkpoint_size_gb(LLAMA2_7B, precision="fp16", peft_method="lora", peft_rank=rank, peft_target_modules=target_modules)
     assert size_gb == pytest.approx(adapter_params * 2.0 / 1e9)  # fp16 = 2 bytes/param
+
+
+def test_qlora_checkpoint_matches_lora_exactly():
+    # Regression test: checkpoint_size_gb's peft_method branch originally
+    # checked `== "lora"` only, silently falling through to the full
+    # (weights + optimizer state) branch for "qlora" instead of the
+    # adapter-only one. QLoRA's checkpoint should be identical to LoRA's —
+    # only the frozen base's storage format differs between the two, and
+    # the frozen base is never part of what gets checkpointed as trainable
+    # state in either case.
+    rank, target_modules = 8, 2
+    lora_gb = checkpoint_size_gb(LLAMA2_7B, precision="fp16", peft_method="lora", peft_rank=rank, peft_target_modules=target_modules)
+    qlora_gb = checkpoint_size_gb(LLAMA2_7B, precision="fp16", peft_method="qlora", peft_rank=rank, peft_target_modules=target_modules)
+    assert qlora_gb == lora_gb
+    # Sanity: this must NOT match the full checkpoint (weights+optimizer) —
+    # that's exactly the silent-fallthrough bug this test guards against.
+    full_gb = checkpoint_size_gb(LLAMA2_7B, precision="fp16")
+    assert qlora_gb < full_gb / 1000

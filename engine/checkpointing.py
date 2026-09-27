@@ -37,14 +37,18 @@ def checkpoint_size_gb(
     Deliberately excludes gradients/activations/kv_cache — none of those are
     part of what gets written to a training checkpoint.
 
-    peft_method="lora" reproduces LoRA's own headline storage story (Hu et
-    al. 2021, Sec 4.2): only the tiny trainable adapter needs saving per
-    task, not the full model — the paper's own GPT-3 175B example (r=4,
-    Wq+Wv) puts this at ~35MB, a ~10,000x reduction from the 350GB full
-    checkpoint, letting many task-specific checkpoints share one base-model
-    copy instead of each paying the full 350GB (see tests/test_checkpointing.py).
+    peft_method="lora"/"qlora" reproduce LoRA's own headline storage story
+    (Hu et al. 2021, Sec 4.2): only the tiny trainable adapter needs saving
+    per task, not the full model — the paper's own GPT-3 175B example
+    (r=4, Wq+Wv) puts this at ~35MB, a ~10,000x reduction from the 350GB
+    full checkpoint, letting many task-specific checkpoints share one
+    base-model copy instead of each paying the full checkpoint size. QLoRA
+    shares this same adapter-only checkpoint (only the frozen base's
+    storage format differs, and the frozen base isn't part of a
+    checkpoint's persisted trainable state in the first place) — see
+    tests/test_checkpointing.py.
     """
-    if peft_method == "lora":
+    if peft_method in ("lora", "qlora"):
         adapter_params = lora_trainable_params(model, peft_rank, peft_target_modules)
         total_bytes = adapter_params * bytes_per_param(precision)
     else:

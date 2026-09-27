@@ -133,8 +133,17 @@ export default function Home() {
     if (!encoded) return;
     const shared = decodeConfig<SharedConfig>(encoded);
     if (!shared) return;
+    // Merge over the current (default) state rather than replacing it
+    // outright: a link encoded before a ModelPanelState field existed
+    // (e.g. peftMethod/peftRank/peftTargetModules, added after zeroStage/
+    // dpSize) would otherwise leave that field `undefined` in React state,
+    // which is a different failure mode than the API's own safe default
+    // (Pydantic's own field default fires only for a *missing* JSON key,
+    // not a JS `undefined` that JSON.stringify already drops before the
+    // request is even sent) — this keeps old links loading cleanly instead
+    // of rendering a broken control bound to an undefined value.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from a shared link's URL param
-    if (shared.modelState) setModelState(shared.modelState);
+    if (shared.modelState) setModelState((prev) => ({ ...prev, ...shared.modelState }));
     if (shared.gpuId) setGpuId(shared.gpuId);
     if (shared.topoState) setTopoState(shared.topoState);
     if (shared.costInputs) setCostInputs(shared.costInputs);
