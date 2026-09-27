@@ -34,6 +34,16 @@ GPT3_175B = ModelShape(params=175.2558e9, num_layers=96, hidden_dim=12288, num_h
 # shares LLaMA's architecture family).
 LLAMA_65B = ModelShape(params=65.0e9, num_layers=80, hidden_dim=8192, num_heads=64, head_dim=128)
 
+# Falcon-7B's real published shape (this project's own catalog preset):
+# extreme GQA (multi-query attention, num_kv_heads=1) with num_heads*head_dim
+# == hidden_dim for Wq/Wo but a much smaller Wk/Wv output dim — a real-world
+# case where a square-matrix assumption would overestimate LoRA's adapter size.
+FALCON_7B_MQA = ModelShape(params=7.22e9, num_layers=32, hidden_dim=4544, num_heads=71, head_dim=64, num_kv_heads=1)
+
+# Gemma-3 1B's real published shape: GQA *and* num_heads*head_dim != hidden_dim
+# (4*256=1024 vs hidden_dim=1152) — exercises both distinct shape effects at once.
+GEMMA3_1B_GQA = ModelShape(params=1.0e9, num_layers=26, hidden_dim=1152, num_heads=4, head_dim=256, num_kv_heads=1)
+
 
 def test_fp16_weights_matches_known_7b_footprint():
     # Widely cited: a 7B model in fp16 takes ~13-14GB just for weights.
@@ -197,6 +207,66 @@ def test_lora_trainable_params_rejects_invalid_inputs():
         lora_trainable_params(LLAMA2_7B, rank=0)
     with pytest.raises(ValueError, match="target_modules"):
         lora_trainable_params(LLAMA2_7B, rank=8, target_modules=5)
+
+
+# --- GQA/MQA-aware attention matrix shapes (Wk/Wv smaller than Wq/Wo) ---
+
+
+def test_lora_trainable_params_uses_smaller_kv_dim_for_gqa_models():
+    # Falcon-7B (num_kv_heads=1, extreme MQA): Wq/Wo are 4544x4544 (square,
+    # num_heads*head_dim == hidden_dim here), but Wk/Wv project down to
+    # only num_kv_heads*head_dim=64 -- a real ~35% smaller matrix than a
+    # naive square-matrix assumption would use.
+    r, target_modules = 8, 2  # Wq + Wv
+    naive_square_estimate = 2 * FALCON_7B_MQA.num_layers * target_modules * FALCON_7B_MQA.hidden_dim * r
+    actual = lora_trainable_params(FALCON_7B_MQA, rank=r, target_modules=target_modules)
+    assert actual < naive_square_estimate
+    # Hand-derived exact value: Wq is (out=71*64, in=4544), Wv is (out=1*64, in=4544).
+    expected = FALCON_7B_MQA.num_layers * (r * (71 * 64 + 4544) + r * (1 * 64 + 4544))
+    assert actual == pytest.approx(expected)
+
+
+def test_lora_trainable_params_handles_non_square_query_projection_too():
+    # Gemma-3 1B: num_heads*head_dim (4*256=1024) != hidden_dim (1152) *and*
+    # GQA (num_kv_heads=1) -- exercises both the query-side and kv-side
+    # shape corrections simultaneously.
+    r, target_modules = 8, 4  # Wq + Wv + Wk + Wo
+    actual = lora_trainable_params(GEMMA3_1B_GQA, rank=r, target_modules=target_modules)
+    q_dim = 4 * 256
+    kv_dim = 1 * 256
+    per_layer = r * (q_dim + 1152) + 2 * r * (kv_dim + 1152) + r * (1152 + q_dim)
+    expected = GEMMA3_1B_GQA.num_layers * per_layer
+    assert actual == pytest.approx(expected)
+
+
+def test_lora_trainable_params_gqa_correction_only_applies_to_kv_matrices():
+    # target_modules=1 adapts only Wq, which is unaffected by GQA (Wq's
+    # shape depends on num_heads, not num_kv_heads) -- so a GQA model's
+    # single-matrix adapter size should differ from an equivalent MHA
+    # model's only when num_heads*head_dim != hidden_dim, not merely
+    # because num_kv_heads is set.
+    mha_equivalent = ModelShape(
+        params=FALCON_7B_MQA.params,
+        num_layers=FALCON_7B_MQA.num_layers,
+        hidden_dim=FALCON_7B_MQA.hidden_dim,
+        num_heads=FALCON_7B_MQA.num_heads,
+        head_dim=FALCON_7B_MQA.head_dim,
+        # num_kv_heads intentionally omitted -> MHA
+    )
+    assert lora_trainable_params(FALCON_7B_MQA, rank=8, target_modules=1) == pytest.approx(
+        lora_trainable_params(mha_equivalent, rank=8, target_modules=1)
+    )
+
+
+def test_lora_trainable_params_still_matches_paper_for_mha_models():
+    # Regression guard: the GQA-aware rewrite must not change the
+    # paper-verified MHA result (num_kv_heads unset, num_heads*head_dim ==
+    # hidden_dim) -- re-asserts the same Table 5 number from
+    # test_lora_trainable_params_matches_paper_table5_worked_example via a
+    # different (target_modules=2) worked path for extra coverage.
+    l_hat = GPT3_175B.num_layers * 2
+    naive_paper_formula = 2 * l_hat * GPT3_175B.hidden_dim * 8
+    assert lora_trainable_params(GPT3_175B, rank=8, target_modules=2) == pytest.approx(naive_paper_formula)
 
 
 def test_lora_reduces_trainable_params_by_the_papers_reported_10000x():

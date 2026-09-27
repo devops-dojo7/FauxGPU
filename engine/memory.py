@@ -148,25 +148,55 @@ def optimizer_state_bytes(
 # fine-tuning ---
 
 def lora_trainable_params(model: ModelShape, rank: int, target_modules: int = 2) -> float:
-    """Number of trainable LoRA parameters: |Theta| = 2 * L_hat * d_model * r
-    (Hu et al. 2021, Sec 5.1), where L_hat is the number of adapted weight
-    matrices (num_layers * target_modules) and r is the LoRA rank. Verified
-    against the paper's own Table 5 worked example on GPT-3 175B (hidden_dim
-    12288, 96 layers): target_modules=1, rank=8 gives exactly 18,874,368
-    (paper reports "~18M") — see tests/test_memory.py.
+    """Number of trainable LoRA parameters across the adapted attention
+    projection matrices. For a linear layer W in R^(d_out x d_in), LoRA's
+    B*A decomposition (B in R^(d_out x r), A in R^(r x d_in)) contributes
+    r*(d_out + d_in) trainable params (Hu et al. 2021, Sec 4.1). Summed
+    across every adapted layer:
 
-    target_modules counts how many of the four self-attention projection
-    matrices (Wq, Wk, Wv, Wo) get an adapter, not which ones — the paper
-    only ever varies this count in its own formula (Table 5's rank column
-    single-matrix vs. two-matrix combos), and its own best-performing
-    setup adapts exactly two (Wq, Wv), the default here.
+      |Theta| = num_layers * sum_over_adapted_matrices(r * (d_out + d_in))
+
+    target_modules selects which matrices are adapted, matching this
+    project's own UI dropdown mapping: 1=Wq, 2=+Wv, 3=+Wk, 4=+Wo — the
+    paper's own formula (Sec 5.1) is a special case of this for plain MHA
+    (multi-head attention, all four matrices square at hidden_dim x
+    hidden_dim): |Theta| = 2 * L_hat * d_model * r, where L_hat =
+    num_layers * target_modules. Verified against the paper's own Table 5
+    worked example on GPT-3 175B (a plain-MHA model, hidden_dim 12288, 96
+    layers): target_modules=1, rank=8 gives exactly 18,874,368 (paper
+    reports "~18M") — see tests/test_memory.py.
+
+    For grouped-query attention (GQA, num_kv_heads set below num_heads —
+    the majority of this project's own model catalog, e.g. Llama-3.x,
+    Qwen, Falcon, Gemma), Wk/Wv project to a *smaller* dimension than Wq/Wo
+    (num_kv_heads * head_dim, not hidden_dim) — the same distinction
+    engine.memory.kv_cache_bytes_per_token already makes via
+    effective_kv_heads. Modeling every adapted matrix as square would
+    overestimate a GQA model's adapter size by 25-33% for target_modules
+    in {2, 3} (verified against real catalog presets in
+    tests/test_memory.py) — this function gets it right for both MHA and
+    GQA, reducing to the paper's own exact formula when num_kv_heads is
+    unset (MHA) and num_heads * head_dim == hidden_dim.
     """
     if rank < 1:
         raise ValueError(f"rank must be >= 1; got {rank}")
     if target_modules not in (1, 2, 3, 4):
         raise ValueError(f"target_modules must be 1-4 (of Wq/Wk/Wv/Wo); got {target_modules}")
-    l_hat = model.num_layers * target_modules
-    return 2 * l_hat * model.hidden_dim * rank
+
+    query_output_dim = model.num_heads * model.head_dim  # Wq's (and Wo's input's) actual output dim
+    kv_output_dim = model.effective_kv_heads * model.head_dim  # Wk/Wv's actual (possibly GQA-shrunk) output dim
+
+    # (d_out, d_in) per adapted matrix, in this project's own UI ordering.
+    matrix_shapes = [(query_output_dim, model.hidden_dim)]  # Wq
+    if target_modules >= 2:
+        matrix_shapes.append((kv_output_dim, model.hidden_dim))  # Wv
+    if target_modules >= 3:
+        matrix_shapes.append((kv_output_dim, model.hidden_dim))  # Wk (same shape as Wv)
+    if target_modules >= 4:
+        matrix_shapes.append((model.hidden_dim, query_output_dim))  # Wo
+
+    per_layer_params = sum(rank * (d_out + d_in) for d_out, d_in in matrix_shapes)
+    return model.num_layers * per_layer_params
 
 
 # QLoRA's block-wise quantization overhead (Dettmers et al. 2023, Sec 3):

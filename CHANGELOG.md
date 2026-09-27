@@ -14,10 +14,19 @@ modeling gap the simulator previously had no way to represent.
 ### Added
 
 - **`engine.memory.lora_trainable_params`** models LoRA (Hu et al. 2021,
-  https://arxiv.org/abs/2106.09685): `|Theta| = 2 * L_hat * d_model * r`.
+  https://arxiv.org/abs/2106.09685): trainable params = `r*(d_out+d_in)`
+  summed per adapted matrix per layer, correctly using each matrix's real
+  output dimension rather than assuming every attention matrix is square
+  — Wk/Wv project to `num_kv_heads*head_dim` under grouped-query attention
+  (GQA, the majority of this project's own model catalog: Llama-3.x,
+  Qwen, Falcon, Gemma), a real ~25-35% smaller matrix than Wq/Wo for
+  common presets. Reduces to the paper's own exact formula
+  (`2 * L_hat * d_model * r`) for plain multi-head attention (MHA).
   Verified byte-for-byte against the paper's own Table 5 worked example on
-  GPT-3 175B (rank 8, one adapted matrix: exactly 18,874,368 trainable
-  params, matching the paper's own "~18M").
+  GPT-3 175B — a plain-MHA model (rank 8, one adapted matrix: exactly
+  18,874,368 trainable params, matching the paper's own "~18M") — and
+  against hand-derived exact values for real GQA/MQA catalog presets
+  (Falcon-7B, Gemma-3 1B).
 - **`engine.memory.quantized_weight_bytes`** models QLoRA's (Dettmers et
   al. 2023, https://arxiv.org/abs/2305.14314) 4-bit NormalFloat base-model
   storage with Double Quantization. Verified against the paper's own
@@ -81,6 +90,13 @@ modeling gap the simulator previously had no way to represent.
   *weight* gradient (dL/dW) is skippable, and only for frozen parameters.
   Corrected before this feature's first HTTP verification round completed,
   via `lora_flops_multiplier` (see Added, above).
+- `lora_trainable_params`'s first pass (above) assumed every adapted
+  attention matrix was square (`hidden_dim x hidden_dim`), overestimating
+  the adapter size by ~25-35% for the majority of this project's own
+  catalog (GQA models, where Wk/Wv actually project to a smaller
+  `num_kv_heads*head_dim`) — the same distinction this project's own
+  `kv_cache_bytes_per_token` already made via `effective_kv_heads`, just
+  missed here. Fixed to use each matrix's real output dimension.
 
 Verified via real HTTP calls against a running API instance: `/calculate/vram`
 for a LLaMA-65B-shaped model lands at 1040GB (full) / 131GB (LoRA) / 34GB
@@ -95,10 +111,13 @@ adapter's params/full-params ratio exactly) and compute time per step
 from 0.479s to 0.319s (a 0.667x multiplier, matching the ~30%-fewer-FLOPs
 figure the literature reports) — together, the resulting full training run
 drops from 583 GPU-hours/$21.0K to 271 GPU-hours/$9.7K, a real, derived
-~2.15x speedup, not a hardcoded number. Also confirmed the actual Next.js
-dev server + FastAPI request/response round-trip renders the new controls.
-30 new pytest tests; full suite green (291 tests, one unrelated
-pre-existing timing flake in test_runs_store.py, same one noted in 0.4.0).
+~2.15x speedup, not a hardcoded number. Real Falcon-7B preset (extreme
+multi-query attention, `num_kv_heads=1`) round-tripped through
+`/calculate/vram` to confirm the GQA fix's effect end-to-end. Also
+confirmed the actual Next.js dev server + FastAPI request/response
+round-trip renders the new controls. 34 new pytest tests; full suite
+green (295 tests, one unrelated pre-existing timing flake in
+test_runs_store.py, same one noted in 0.4.0).
 
 ## [0.4.0] - 2026-09-27
 
