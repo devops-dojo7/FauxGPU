@@ -44,6 +44,14 @@ FALCON_7B_MQA = ModelShape(params=7.22e9, num_layers=32, hidden_dim=4544, num_he
 # (4*256=1024 vs hidden_dim=1152) — exercises both distinct shape effects at once.
 GEMMA3_1B_GQA = ModelShape(params=1.0e9, num_layers=26, hidden_dim=1152, num_heads=4, head_dim=256, num_kv_heads=1)
 
+# DeepSeek-V3's real published shape (this project's own catalog preset):
+# multi-head latent attention (MLA) — K/V compressed to kv_latent_dim=576,
+# a real ~28x smaller "KV dimension" than num_heads*head_dim=16384 would
+# naively suggest, since there is no per-head Wk/Wv in MLA at all.
+DEEPSEEK_V3_MLA = ModelShape(
+    params=671.0e9, active_params=37.0e9, num_layers=61, hidden_dim=7168, num_heads=128, head_dim=128, kv_latent_dim=576
+)
+
 
 def test_fp16_weights_matches_known_7b_footprint():
     # Widely cited: a 7B model in fp16 takes ~13-14GB just for weights.
@@ -267,6 +275,42 @@ def test_lora_trainable_params_still_matches_paper_for_mha_models():
     l_hat = GPT3_175B.num_layers * 2
     naive_paper_formula = 2 * l_hat * GPT3_175B.hidden_dim * 8
     assert lora_trainable_params(GPT3_175B, rank=8, target_modules=2) == pytest.approx(naive_paper_formula)
+
+
+# --- MLA-aware KV dimension (compressed latent, not per-head Wk/Wv) ---
+
+
+def test_lora_trainable_params_uses_kv_latent_dim_for_mla_models():
+    # DeepSeek-V3 (kv_latent_dim=576): the KV side of the adapter should
+    # use the compressed latent dimension, not num_heads*head_dim=16384 --
+    # a real ~28x smaller (and thus far cheaper to adapt) KV dimension.
+    r, target_modules = 8, 2  # Wq + Wv
+    naive_head_count_estimate = DEEPSEEK_V3_MLA.num_layers * (
+        r * (128 * 128 + 7168) + r * (128 * 128 + 7168)  # both treated as square/head-count-based
+    )
+    actual = lora_trainable_params(DEEPSEEK_V3_MLA, rank=r, target_modules=target_modules)
+    assert actual < naive_head_count_estimate
+    # Hand-derived exact value: Wq is (out=128*128, in=7168), the KV
+    # down-projection is (out=576, in=7168).
+    expected = DEEPSEEK_V3_MLA.num_layers * (r * (128 * 128 + 7168) + r * (576 + 7168))
+    assert actual == pytest.approx(expected)
+
+
+def test_lora_trainable_params_mla_correction_only_applies_to_kv_matrix():
+    # target_modules=1 adapts only Wq, which MLA's kv_latent_dim doesn't
+    # touch -- should match an otherwise-identical non-MLA model exactly.
+    non_mla_equivalent = ModelShape(
+        params=DEEPSEEK_V3_MLA.params,
+        active_params=DEEPSEEK_V3_MLA.active_params,
+        num_layers=DEEPSEEK_V3_MLA.num_layers,
+        hidden_dim=DEEPSEEK_V3_MLA.hidden_dim,
+        num_heads=DEEPSEEK_V3_MLA.num_heads,
+        head_dim=DEEPSEEK_V3_MLA.head_dim,
+        # kv_latent_dim intentionally omitted
+    )
+    assert lora_trainable_params(DEEPSEEK_V3_MLA, rank=8, target_modules=1) == pytest.approx(
+        lora_trainable_params(non_mla_equivalent, rank=8, target_modules=1)
+    )
 
 
 def test_lora_reduces_trainable_params_by_the_papers_reported_10000x():

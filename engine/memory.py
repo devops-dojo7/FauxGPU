@@ -177,6 +177,21 @@ def lora_trainable_params(model: ModelShape, rank: int, target_modules: int = 2)
     tests/test_memory.py) — this function gets it right for both MHA and
     GQA, reducing to the paper's own exact formula when num_kv_heads is
     unset (MHA) and num_heads * head_dim == hidden_dim.
+
+    For multi-head latent attention (MLA, kv_latent_dim set — DeepSeek-V3/
+    R1, Kimi K2/K3 in this project's catalog), there is no conventional
+    per-head Wk/Wv at all: K/V are compressed through a shared down-
+    projection to kv_latent_dim before being up-projected back per-head
+    (DeepSeek-AI et al. 2024, DeepSeek-V2, https://arxiv.org/abs/2405.04434).
+    Adapting the down-projection (hidden_dim -> kv_latent_dim, the
+    dominant KV-side parameter/adapter cost and the same "K/V compressed
+    to one shared latent" simplification engine.memory.
+    kv_cache_bytes_per_token already uses) is this teaching tool's level
+    of MLA fidelity for target_modules 2/3 — using kv_latent_dim in place
+    of effective_kv_heads*head_dim avoids a real ~50% overestimate a naive
+    head-count-based formula would otherwise produce for these presets
+    (kv_latent_dim=576 is far smaller than num_heads*head_dim=16384 for
+    DeepSeek-V3's published shape).
     """
     if rank < 1:
         raise ValueError(f"rank must be >= 1; got {rank}")
@@ -184,7 +199,10 @@ def lora_trainable_params(model: ModelShape, rank: int, target_modules: int = 2)
         raise ValueError(f"target_modules must be 1-4 (of Wq/Wk/Wv/Wo); got {target_modules}")
 
     query_output_dim = model.num_heads * model.head_dim  # Wq's (and Wo's input's) actual output dim
-    kv_output_dim = model.effective_kv_heads * model.head_dim  # Wk/Wv's actual (possibly GQA-shrunk) output dim
+    # Wk/Wv's actual output dim: MLA's compressed latent when present
+    # (kv_latent_dim, far smaller than a head-count-based formula would
+    # give), else GQA's (possibly shrunk) effective_kv_heads * head_dim.
+    kv_output_dim = model.kv_latent_dim if model.uses_mla else model.effective_kv_heads * model.head_dim
 
     # (d_out, d_in) per adapted matrix, in this project's own UI ordering.
     matrix_shapes = [(query_output_dim, model.hidden_dim)]  # Wq

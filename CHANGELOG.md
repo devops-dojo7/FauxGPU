@@ -20,13 +20,16 @@ modeling gap the simulator previously had no way to represent.
   — Wk/Wv project to `num_kv_heads*head_dim` under grouped-query attention
   (GQA, the majority of this project's own model catalog: Llama-3.x,
   Qwen, Falcon, Gemma), a real ~25-35% smaller matrix than Wq/Wo for
-  common presets. Reduces to the paper's own exact formula
-  (`2 * L_hat * d_model * r`) for plain multi-head attention (MHA).
-  Verified byte-for-byte against the paper's own Table 5 worked example on
-  GPT-3 175B — a plain-MHA model (rank 8, one adapted matrix: exactly
-  18,874,368 trainable params, matching the paper's own "~18M") — and
-  against hand-derived exact values for real GQA/MQA catalog presets
-  (Falcon-7B, Gemma-3 1B).
+  common presets, and to `kv_latent_dim` under multi-head latent
+  attention (MLA, DeepSeek-V3/R1, Kimi K2/K3 — no conventional per-head
+  Wk/Wv exists there at all), a real ~28x smaller "KV dimension" than a
+  head-count-based formula would suggest. Reduces to the paper's own
+  exact formula (`2 * L_hat * d_model * r`) for plain multi-head
+  attention (MHA). Verified byte-for-byte against the paper's own Table 5
+  worked example on GPT-3 175B — a plain-MHA model (rank 8, one adapted
+  matrix: exactly 18,874,368 trainable params, matching the paper's own
+  "~18M") — and against hand-derived exact values for real GQA/MQA/MLA
+  catalog presets (Falcon-7B, Gemma-3 1B, DeepSeek-V3).
 - **`engine.memory.quantized_weight_bytes`** models QLoRA's (Dettmers et
   al. 2023, https://arxiv.org/abs/2305.14314) 4-bit NormalFloat base-model
   storage with Double Quantization. Verified against the paper's own
@@ -96,7 +99,13 @@ modeling gap the simulator previously had no way to represent.
   catalog (GQA models, where Wk/Wv actually project to a smaller
   `num_kv_heads*head_dim`) — the same distinction this project's own
   `kv_cache_bytes_per_token` already made via `effective_kv_heads`, just
-  missed here. Fixed to use each matrix's real output dimension.
+  missed here. Also missed MLA models (`kv_latent_dim` set — DeepSeek-V3/
+  R1, Kimi K2/K3), overestimating by ~28x there since MLA has no
+  conventional per-head Wk/Wv at all. A full sweep of this project's
+  entire 76-preset model catalog (58 GQA/MQA, 22 MoE, 5 MLA) through the
+  fixed formula now passes with zero errors. Fixed to use each matrix's
+  real output dimension, branching on `uses_mla`/`effective_kv_heads` the
+  same way `kv_cache_bytes_per_token` already does.
 
 Verified via real HTTP calls against a running API instance: `/calculate/vram`
 for a LLaMA-65B-shaped model lands at 1040GB (full) / 131GB (LoRA) / 34GB
@@ -111,13 +120,13 @@ adapter's params/full-params ratio exactly) and compute time per step
 from 0.479s to 0.319s (a 0.667x multiplier, matching the ~30%-fewer-FLOPs
 figure the literature reports) — together, the resulting full training run
 drops from 583 GPU-hours/$21.0K to 271 GPU-hours/$9.7K, a real, derived
-~2.15x speedup, not a hardcoded number. Real Falcon-7B preset (extreme
-multi-query attention, `num_kv_heads=1`) round-tripped through
-`/calculate/vram` to confirm the GQA fix's effect end-to-end. Also
-confirmed the actual Next.js dev server + FastAPI request/response
-round-trip renders the new controls. 34 new pytest tests; full suite
-green (295 tests, one unrelated pre-existing timing flake in
-test_runs_store.py, same one noted in 0.4.0).
+~2.15x speedup, not a hardcoded number. Real Falcon-7B (extreme
+multi-query attention) and DeepSeek-V3 (MLA) presets both round-tripped
+through `/calculate/vram` to confirm the GQA/MLA fixes' effect
+end-to-end. Also confirmed the actual Next.js dev server + FastAPI
+request/response round-trip renders the new controls. 37 new pytest
+tests; full suite green (298 tests, one unrelated pre-existing timing
+flake in test_runs_store.py, same one noted in 0.4.0).
 
 ## [0.4.0] - 2026-09-27
 
